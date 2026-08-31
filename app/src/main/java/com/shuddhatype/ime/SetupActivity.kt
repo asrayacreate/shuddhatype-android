@@ -1,0 +1,204 @@
+package com.shuddhatype.ime
+
+import android.app.Activity
+import com.shuddhatype.R
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.os.Bundle
+import android.provider.Settings
+import android.text.InputType
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+
+/**
+ * First run.
+ *
+ * Android makes enabling a third-party keyboard genuinely confusing — two
+ * separate system screens, neither of which explains itself — and this is where
+ * most installs are abandoned. So the screen does three things and nothing else:
+ * enable, select, then a box to type in and see it working.
+ *
+ * Each step shows its own state, checked live in onResume(), because the user
+ * leaves this activity to complete every step and comes back.
+ */
+class SetupActivity : Activity() {
+
+    private lateinit var enableBtn: Button
+    private lateinit var selectBtn: Button
+    private lateinit var enableMark: TextView
+    private lateinit var selectMark: TextView
+    private lateinit var preview: EditText
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(buildLayout())
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshState()
+    }
+
+    private fun buildLayout(): View {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(BG)
+            setPadding(dp(24), dp(40), dp(24), dp(40))
+        }
+
+        root.addView(TextView(this).apply {
+            text = getString(R.string.app_name)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        root.addView(TextView(this).apply {
+            text = "नेपालीको शुद्धाशुद्धि बुझ्ने किबोर्ड"
+            setTextColor(MUTED)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setPadding(0, dp(6), 0, dp(28))
+        })
+
+        // Step 1
+        enableMark = stepMark()
+        enableBtn = actionButton(getString(R.string.setup_enable)) {
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        }
+        root.addView(stepBlock("१", "सूचीमा ShuddhaType खोजेर अन गर्नुहोस्", enableMark, enableBtn))
+
+        // Step 2
+        selectMark = stepMark()
+        selectBtn = actionButton(getString(R.string.setup_select)) {
+            (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .showInputMethodPicker()
+        }
+        root.addView(stepBlock("२", "अहिले चलाउने किबोर्ड ShuddhaType बनाउनुहोस्", selectMark, selectBtn))
+
+        // Step 3 — proof it works
+        preview = EditText(this).apply {
+            hint = "k xa sathi"
+            setHintTextColor(HINT)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setBackgroundColor(FIELD)
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setSingleLine(false)
+            minLines = 2
+        }
+        root.addView(stepBlock("३", getString(R.string.setup_try), null, preview))
+
+        root.addView(TextView(this).apply {
+            text = "तपाईंले टाइप गरेको कुनै पनि कुरा फोनबाहिर जाँदैन। " +
+                "इन्टरनेट चाहिँदैन, खाता चाहिँदैन।"
+            setTextColor(MUTED)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(0, dp(28), 0, 0)
+        })
+
+        return ScrollView(this).apply {
+            setBackgroundColor(BG)
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+    }
+
+    private fun stepBlock(number: String, caption: String, mark: TextView?, action: View): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, dp(26))
+
+            addView(LinearLayout(this@SetupActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(this@SetupActivity).apply {
+                    text = number
+                    setTextColor(ACCENT)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(0, 0, dp(10), 0)
+                })
+                addView(TextView(this@SetupActivity).apply {
+                    text = caption
+                    setTextColor(Color.WHITE)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                mark?.let { addView(it) }
+            })
+
+            addView(action, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(10)
+            })
+        }
+
+    private fun stepMark() = TextView(this).apply {
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        setPadding(dp(8), 0, 0, 0)
+    }
+
+    private fun actionButton(label: String, onClick: () -> Unit) = Button(this).apply {
+        text = label
+        isAllCaps = false
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        setTextColor(Color.WHITE)
+        setBackgroundColor(ACCENT)
+        setOnClickListener { onClick() }
+    }
+
+    /** Both steps are checked against the system, never assumed from a tap. */
+    private fun refreshState() {
+        val enabled = isKeyboardEnabled()
+        val selected = isKeyboardSelected()
+
+        enableMark.text = if (enabled) "✓" else ""
+        enableMark.setTextColor(OK)
+        enableBtn.setBackgroundColor(if (enabled) DONE else ACCENT)
+        enableBtn.text = if (enabled) "सक्रिय भइसक्यो" else getString(R.string.setup_enable)
+
+        selectMark.text = if (selected) "✓" else ""
+        selectMark.setTextColor(OK)
+        selectBtn.isEnabled = enabled
+        selectBtn.alpha = if (enabled) 1f else 0.4f
+        selectBtn.setBackgroundColor(if (selected) DONE else ACCENT)
+        selectBtn.text = if (selected) "रोजिइसक्यो" else getString(R.string.setup_select)
+
+        preview.isEnabled = selected
+        preview.alpha = if (selected) 1f else 0.4f
+    }
+
+    private fun isKeyboardEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(
+            contentResolver, Settings.Secure.ENABLED_INPUT_METHODS
+        ) ?: return false
+        return enabled.contains(packageName)
+    }
+
+    private fun isKeyboardSelected(): Boolean {
+        val current = Settings.Secure.getString(
+            contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD
+        ) ?: return false
+        return current.contains(packageName)
+    }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private val BG = Color.parseColor("#0D0D0D")
+        private val ACCENT = Color.parseColor("#E8333A")
+        private val DONE = Color.parseColor("#2A2E35")
+        private val MUTED = Color.parseColor("#8A8580")
+        private val HINT = Color.parseColor("#5C5854")
+        private val FIELD = Color.parseColor("#16181C")
+        private val OK = Color.parseColor("#4ADE80")
+    }
+}

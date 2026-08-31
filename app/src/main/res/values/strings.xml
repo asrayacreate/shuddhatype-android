@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ShuddhaType</string>
+    <string name="subtype_nepali">नेपाली</string>
+    <string name="setup_enable">किबोर्ड सक्रिय गर्नुहोस्</string>
+    <string name="setup_select">ShuddhaType रोज्नुहोस्</string>
+    <string name="setup_try">यहाँ टाइप गरेर हेर्नुहोस्</string>
+</resources>
