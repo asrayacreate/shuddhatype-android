@@ -19,6 +19,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.shuddhatype.crash.CrashHandler
 
 /**
  * First run.
@@ -55,6 +56,33 @@ class SetupActivity : Activity() {
             setBackgroundColor(BG)
             setPadding(dp(24), dp(40), dp(24), dp(40))
         }
+
+        // Third fallback: if CrashActivity never got to run (e.g. the OS killed
+        // the process too fast to launch it), a trace may still be sitting on
+        // disk from last time. Wrapped in try-catch so a problem here can never
+        // block the setup screen itself from showing.
+        try {
+            val leftover = CrashHandler.readLastTrace(this)
+            if (leftover != null) {
+                root.addView(TextView(this).apply {
+                    text = "⚠️ अघिल्लो पटक app बन्द भएको थियो। थिच्नुहोस् — Share गर्न।"
+                    setTextColor(Color.parseColor("#FDBA74"))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    setBackgroundColor(Color.parseColor("#2A1F14"))
+                    setOnClickListener {
+                        try {
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, leftover)
+                            }
+                            startActivity(Intent.createChooser(send, "Share crash log"))
+                            CrashHandler.clearLastTrace(this@SetupActivity)
+                        } catch (_: Throwable) { }
+                    }
+                })
+            }
+        } catch (_: Throwable) { }
 
         root.addView(TextView(this).apply {
             text = getString(R.string.app_name)

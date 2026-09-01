@@ -5,9 +5,12 @@
          cleanest proof is that the app cannot reach the network at all. -->
 
     <application
+        android:name="com.shuddhatype.ShuddhaTypeApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name">
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.ShuddhaType">
 
         <service
             android:name="com.shuddhatype.ime.ShuddhaTypeService"
@@ -33,5 +36,15 @@
         </activity>
 
         <activity android:name="com.shuddhatype.ime.SettingsActivity" android:exported="false" />
+
+        <!-- Its own process, its own (framework, not app-defined) theme, no
+             other app resource. If the crash we're reporting is itself a
+             resource/theme problem, this screen must not share the cause. -->
+        <activity
+            android:name="com.shuddhatype.crash.CrashActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:launchMode="singleTask" />
     </application>
 </manifest>

@@ -37,7 +37,9 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    // No AppCompat, no core-ktx. Not a single class from either was used, and
+    // appcompat drags in emoji2 -> androidx.startup, which installs a
+    // ContentProvider that runs before Application.onCreate(). An unused
+    // dependency that can fail before your code starts is pure downside.
     testImplementation("junit:junit:4.13.2")
 }
