@@ -205,18 +205,19 @@ class SetupActivity : Activity() {
     }
 
     private fun isKeyboardEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver, Settings.Secure.ENABLED_INPUT_METHODS
-        ) ?: return false
-        return enabled.contains(packageName)
-    }
-
-    private fun isKeyboardSelected(): Boolean {
+    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+    return imm.enabledInputMethodList.any { it.packageName == packageName }
+}
+   private fun isKeyboardSelected(): Boolean {
+    return try {
         val current = Settings.Secure.getString(
             contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD
         ) ?: return false
-        return current.contains(packageName)
+        current.contains(packageName)
+    } catch (e: SecurityException) {
+        false
     }
+}
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
