@@ -1,7 +1,6 @@
 package com.shuddhatype.engine
 
 import java.io.InputStream
-import java.util.zip.GZIPInputStream
 
 /**
  * Word -> frequency rank. Lower rank means more common, and that ordering is
@@ -38,12 +37,12 @@ class Lexicon {
      * Keeping I/O out of here is what lets the same class run in both.
      */
     fun load(open: (String) -> InputStream, verbRootLimit: Int = DEFAULT_VERB_ROOTS) {
-        val words = readLines(open, "words.txt.gz")
+        val words = readLines(open, "words.txt")
         // verb_roots.txt.gz is ordered by how much corpus evidence each root has,
         // so taking a prefix keeps the common verbs and drops the obscure ones.
         // 400 roots scored the same as all 1,002 on the test set at a third of
         // the heap; raise this if profiling on real devices says there is room.
-        val roots = readLines(open, "verb_roots.txt.gz").take(verbRootLimit)
+        val roots = readLines(open, "verb_roots.txt").take(verbRootLimit)
 
         // Sized up front: rehashing 140k entries mid-load is the slowest thing
         // this class could do.
@@ -61,7 +60,7 @@ class Lexicon {
     }
 
     private fun readLines(open: (String) -> InputStream, name: String): List<String> =
-        GZIPInputStream(open(name)).bufferedReader(Charsets.UTF_8).use { r ->
+        open(name).bufferedReader(Charsets.UTF_8).use { r ->
             r.lineSequence().filter { it.isNotBlank() }.toList()
         }
 
