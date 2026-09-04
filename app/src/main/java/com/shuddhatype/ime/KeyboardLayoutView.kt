@@ -24,9 +24,9 @@ import android.widget.TextView
  * on the low-end phones this app is aimed at.
  *
  * Three modes, cycled by the mode key:
- *   ने   Roman in, शुद्ध Devanagari out (the main path)
- *   EN   Roman in, Roman out — for English words, no transliteration
- *   दे   direct Devanagari, for people who already type it
+ *   🇳🇵  Roman in, शुद्ध Devanagari out (the main path)
+ *   EN  Roman in, Roman out — for English words, no transliteration
+ *   दे  direct Devanagari, for people who already type it
  *
  * Plus a symbols layer (123) and an emoji pad, so a whole message can be
  * written without ever leaving the keyboard.
@@ -62,7 +62,10 @@ class KeyboardLayoutView(
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     companion object {
-        const val KEYBOARD_HEIGHT_DP = 252
+        // Raised from 252. At 252 the board sat at roughly a quarter of the
+        // screen — noticeably shorter than the stock keyboard, which made the
+        // keys feel cramped and easy to miss.
+        const val KEYBOARD_HEIGHT_DP = 300
         private val BG = Color.parseColor("#0F1115")
     }
 }
@@ -86,7 +89,6 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     private var shifted = false
     private var sensitive = false
     private var pressed: Key? = null
-
     var onEmojiRequest: (() -> Unit)? = null
 
     private val rows: List<List<Key>>
@@ -126,7 +128,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
 
     private val symbolRows = listOf(
         digits("1234567890"),
-                "@#\$_&-+()/".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) },
+        "@#\$_&-+()/".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) },
         listOf(Key("=\\<", "", Key.Kind.SHIFT, 1.5f)) +
             "*\"':;!?".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) } +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
@@ -141,7 +143,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     )
 
     private fun bottomRow() = listOf(
-        Key("ने", "", Key.Kind.MODE, 1.4f),
+        Key(FLAG, "", Key.Kind.MODE, 1.4f),
         Key("123", "", Key.Kind.LAYER, 1.4f),
         Key("☺", "", Key.Kind.EMOJI, 1.2f),
         Key("space", " ", Key.Kind.SPACE, 4f),
@@ -149,8 +151,10 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         Key("↵", "", Key.Kind.ENTER, 1.5f)
     )
 
+    // The flag marks the mode that actually makes this keyboard Nepali. दे is
+    // also Devanagari, but the flag belongs on the शुद्ध transliteration page.
     private fun modeLabel() = when (mode) {
-        0 -> "ने"
+        0 -> FLAG
         1 -> "EN"
         else -> "दे"
     }
@@ -191,12 +195,12 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        val pad = dp(3f)
+        val pad = dp(2f)
         val rowH = (height - pad * 2) / rows.size.toFloat()
         rows.forEachIndexed { ri, row ->
             val cells = visibleRow(ri, row)
             val totalWeight = cells.sumOf { it.weight.toDouble() }.toFloat()
-            var x = pad.toFloat()
+            var x = pad
             val usable = width - pad * 2
             cells.forEach { k ->
                 val w = usable * (k.weight / totalWeight)
@@ -211,8 +215,10 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         if (mode == 2 && !symbols && shifted && index == 2) devaShiftRow else row
 
     override fun onDraw(canvas: Canvas) {
-        val gap = dp(2.5f)
-        val radius = dp(6f)
+        // Narrower gap than before: the space between keys was eating room the
+        // key face could use, which is what made the buttons look small.
+        val gap = dp(1.5f)
+        val radius = dp(7f)
         rows.forEachIndexed { ri, row ->
             visibleRow(ri, row).forEach { k ->
                 keyPaint.color = when {
@@ -228,13 +234,18 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
                 canvas.drawRoundRect(r, radius, radius, keyPaint)
 
                 val isChar = k.kind == Key.Kind.LETTER || k.kind == Key.Kind.DIGIT
-                textPaint.textSize = if (isChar) dp(19f) else dp(14f)
-                textPaint.color = if (isChar) Color.WHITE else LABEL_MOD
                 val label = when {
                     k.kind == Key.Kind.MODE -> modeLabel()
                     shifted && k.kind == Key.Kind.LETTER && mode != 2 -> k.label.uppercase()
                     else -> k.label
                 }
+                textPaint.textSize = when {
+                    isChar -> dp(23f)
+                    label == FLAG -> dp(20f)
+                    else -> dp(16f)
+                }
+                textPaint.color = if (isChar) Color.WHITE else LABEL_MOD
+
                 val cy = r.centerY() - (textPaint.descent() + textPaint.ascent()) / 2
                 canvas.drawText(label, r.centerX(), cy, textPaint)
             }
@@ -308,6 +319,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     companion object {
         private const val REPEAT_DELAY_MS = 400L
         private const val REPEAT_MS = 55L
+        private const val FLAG = "🇳🇵"
         private val KEY = Color.parseColor("#272B33")
         private val KEY_MOD = Color.parseColor("#1A1D23")
         private val KEY_PRESSED = Color.parseColor("#3A3F49")
