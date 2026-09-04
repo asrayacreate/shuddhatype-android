@@ -22,6 +22,9 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     private lateinit var keyboardView: KeyboardLayoutView
     private lateinit var suggestionBar: SuggestionBar
 
+    /** Remembered until the view exists; onStartInput can fire before onCreateInputView(). */
+    private var sensitiveField = false
+
     /** Roman letters typed since the last word boundary. */
     private val composing = StringBuilder()
 
@@ -40,6 +43,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     override fun onCreateInputView(): View {
         suggestionBar = SuggestionBar(this).apply { onPick = ::commitChoice }
         keyboardView = KeyboardLayoutView(this, actions = this, suggestions = suggestionBar)
+        keyboardView.setSensitive(sensitiveField)
         return keyboardView
     }
 
@@ -47,7 +51,9 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         super.onStartInput(info, restarting)
         composing.setLength(0)
         // Never transliterate or learn from a password or OTP field.
-        keyboardView.setSensitive(isSensitiveField(info))
+        sensitiveField = isSensitiveField(info)
+        // onStartInput can run before onCreateInputView(); apply it then instead.
+        if (::keyboardView.isInitialized) keyboardView.setSensitive(sensitiveField)
     }
 
     private fun isSensitiveField(info: EditorInfo?): Boolean {
@@ -98,14 +104,14 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
             composing.setLength(0)
         }
         if (separator.isNotEmpty()) ic.commitText(separator, 1)
-        suggestionBar.clear()
+        if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
 
     /** The user tapped a suggestion instead of accepting the top one. */
     private fun commitChoice(word: String) {
         currentInputConnection?.commitText("$word ", 1)
         composing.setLength(0)
-        suggestionBar.clear()
+        if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
 
     /**
@@ -119,6 +125,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     }
 
     private fun refreshSuggestions() {
+        if (!::suggestionBar.isInitialized) return
         if (composing.isEmpty()) { suggestionBar.clear(); return }
         val cands = Transliterator.candidates(composing.toString(), lexicon, limit = 3)
         suggestionBar.show(cands.map { it.word })
