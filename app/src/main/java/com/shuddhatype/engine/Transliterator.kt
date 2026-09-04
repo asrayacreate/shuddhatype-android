@@ -125,7 +125,7 @@ object Transliterator {
         return d
     }
 
-    enum class Source { SHORT, DICT, SHUDDHI, RULE_WORD, RULE, JOINED }
+    enum class Source { SHORT, DICT, ENGLISH, SHUDDHI, RULE_WORD, RULE, JOINED, ROMAN }
 
     data class Candidate(val word: String, val source: Source)
 
@@ -135,6 +135,9 @@ object Transliterator {
      * Tuned to 800 over 27 held-out sentences — re-tune if the corpus changes.
      */
     private const val DISTANCE_PENALTY = 800
+
+    /** Below this, a word is too short to guess English from. See [English]. */
+    private const val MIN_ROMAN_FALLBACK = 4
 
     fun candidates(roman: String, lex: Lexicon, limit: Int = 5): List<Candidate> {
         val key = roman.lowercase()
@@ -147,7 +150,13 @@ object Transliterator {
         // 2. hand-tuned romanisations
         Tables.DICT[key]?.split("|")?.forEach { push(it, Source.DICT) }
 
-        // 3. every lexicon-valid spelling, best-ranked first
+        // 3. English typed without leaving the नेपाली page. "download" has no
+        //    Devanagari spelling worth guessing, and दोव्न्लोअड helps nobody, so
+        //    the word goes back exactly as typed. The list is deliberately
+        //    conservative about words that are also Nepali — see [English].
+        if (English.contains(key)) push(roman, Source.ENGLISH)
+
+        // 4. every lexicon-valid spelling, best-ranked first
         val units = toUnits(key)
         val base = render(units)
         variants(units)
@@ -157,7 +166,7 @@ object Transliterator {
             .sortedBy { lex.rankOf(it) + distance(it, base) * DISTANCE_PENALTY }
             .forEach { push(it, if (it == base) Source.RULE_WORD else Source.SHUDDHI) }
 
-        // 4. stem + postposition ("sikshako" -> "siksha" + "ko")
+        // 5. stem + postposition ("sikshako" -> "siksha" + "ko")
         if (seen.isEmpty()) {
             for (suf in Tables.POSTPOS.keys.sortedByDescending { it.length }) {
                 if (key.length > suf.length + 1 && key.endsWith(suf)) {
@@ -168,8 +177,19 @@ object Transliterator {
             }
         }
 
-        // 5. raw rule output, always available as a fallback
+        val beforeFallback = seen.size
+
+        // 6. raw rule output, always available as a fallback
         push(base, Source.RULE)
+
+        // 7. Nothing above recognised the word — it is English we do not list,
+        //    a brand, or a name. The rule output stays first so a genuine Nepali
+        //    word missing from the lexicon still writes correctly, but the Roman
+        //    sits right behind it, one tap away.
+        if (beforeFallback == 0 && key.length >= MIN_ROMAN_FALLBACK) {
+            push(roman, Source.ROMAN)
+        }
+
         return seen.entries.take(limit).map { Candidate(it.key, it.value) }
     }
 
