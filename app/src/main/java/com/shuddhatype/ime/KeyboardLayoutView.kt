@@ -126,7 +126,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
 
     private val symbolRows = listOf(
         digits("1234567890"),
-        "@#$_&-+()/".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) },
+                "@#\$_&-+()/".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) },
         listOf(Key("=\\<", "", Key.Kind.SHIFT, 1.5f)) +
             "*\"':;!?".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) } +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
