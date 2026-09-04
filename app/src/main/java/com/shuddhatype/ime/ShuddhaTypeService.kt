@@ -25,6 +25,9 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     /** Remembered until the view exists; onStartInput can fire before onCreateInputView(). */
     private var sensitiveField = false
 
+    /** False on the English and direct-Devanagari pages, where keys pass through. */
+    private var nepaliMode = true
+
     /** Roman letters typed since the last word boundary. */
     private val composing = StringBuilder()
 
@@ -50,7 +53,6 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
         composing.setLength(0)
-        // Never transliterate or learn from a password or OTP field.
         sensitiveField = isSensitiveField(info)
         // onStartInput can run before onCreateInputView(); apply it then instead.
         if (::keyboardView.isInitialized) keyboardView.setSensitive(sensitiveField)
@@ -71,6 +73,22 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         composing.append(ch)
         updateComposingText()
         refreshSuggestions()
+    }
+
+    /**
+     * Digits, emoji, English letters, symbols: things the user typed literally.
+     * Any half-finished Nepali word is committed first so the two never
+     * interleave in the text field.
+     */
+    override fun onDirectText(text: String) {
+        finishWord(separator = "")
+        currentInputConnection?.commitText(text, 1)
+    }
+
+    override fun onModeChanged(nepali: Boolean) {
+        if (nepaliMode != nepali) finishWord(separator = "")
+        nepaliMode = nepali
+        if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
 
     override fun onBackspace() {
@@ -127,14 +145,28 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     private fun refreshSuggestions() {
         if (!::suggestionBar.isInitialized) return
         if (composing.isEmpty()) { suggestionBar.clear(); return }
-        val cands = Transliterator.candidates(composing.toString(), lexicon, limit = 3)
-        suggestionBar.show(cands.map { it.word })
+        val roman = composing.toString()
+        val words = ArrayList<String>(SUGGESTION_LIMIT + 1)
+        Transliterator.candidates(roman, lexicon, limit = SUGGESTION_LIMIT)
+            .forEach { words.add(it.word) }
+        // The Roman spelling itself is always offered. Nepalis write English
+        // words mid-sentence constantly ("मेरो keyboard"), and forcing a mode
+        // switch for one word is the fastest way to lose the user.
+        if (!words.contains(roman)) words.add(roman)
+        suggestionBar.show(words)
+    }
+
+    private companion object {
+        /** The bar scrolls, so more than three is free screen space, not clutter. */
+        const val SUGGESTION_LIMIT = 6
     }
 }
 
 /** Key events the view layer reports back to the service. */
 interface KeyboardActions {
     fun onLetter(ch: Char)
+    fun onDirectText(text: String)
+    fun onModeChanged(nepali: Boolean)
     fun onBackspace()
     fun onSpace()
     fun onEnter()

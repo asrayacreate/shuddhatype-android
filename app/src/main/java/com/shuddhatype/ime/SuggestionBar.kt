@@ -27,7 +27,7 @@ class SuggestionBar(context: Context) : HorizontalScrollView(context) {
     }
 
     init {
-        isFillViewport = true
+        isFillViewport = false
         isHorizontalScrollBarEnabled = false
         setBackgroundColor(BG)
         addView(
@@ -58,10 +58,16 @@ class SuggestionBar(context: Context) : HorizontalScrollView(context) {
         // The top candidate is what pressing space will commit, so it is marked.
         // Everything else stays visually quiet.
         typeface = if (isTop) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-        setPadding(dp(18), dp(10), dp(18), dp(10))
+        setPadding(dp(16), dp(10), dp(16), dp(10))
         isClickable = true
         setOnClickListener { onPick?.invoke(word) }
-        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+        // Wrap, not weight: six candidates squeezed into one screen width are
+        // unreadable and un-tappable. Let them size to the word and scroll.
+        minWidth = dp(64)
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.MATCH_PARENT
+        )
     }
 
     private fun divider() = View(context).apply {
