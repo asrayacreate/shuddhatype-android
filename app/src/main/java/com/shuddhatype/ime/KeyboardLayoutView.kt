@@ -179,15 +179,17 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
 
     // Six keys, not seven. The comma had its own key here and the row felt
     // packed; it now lives on a hold of the danda, which is the mark it shares
-    // a sentence with anyway. That buys space about half the row — from 42% to
-    // 53% — and every remaining key is still wider than a fingertip.
+    // a sentence with anyway. The modifiers around space are then trimmed to
+    // what a thumb still finds — space ends up at 59% of the row, wider than
+    // any Nepali keyboard I have measured, and the mode and layer keys stay
+    // above 30dp on a normal phone.
     private fun bottomRow() = listOf(
-        Key(FLAG, "", Key.Kind.MODE, 1.1f),
-        Key("123", "", Key.Kind.LAYER, 1.1f),
-        Key("☺", "", Key.Kind.EMOJI, 1.0f),
-        Key("space", " ", Key.Kind.SPACE, 6.2f),
-        Key("।", "।", Key.Kind.PUNCT, 0.9f, ","),
-        Key("↵", "", Key.Kind.ENTER, 1.3f)
+        Key(FLAG, "", Key.Kind.MODE, 1.0f),
+        Key("123", "", Key.Kind.LAYER, 1.0f),
+        Key("☺", "", Key.Kind.EMOJI, 0.9f),
+        Key("space", " ", Key.Kind.SPACE, 7.0f),
+        Key("।", "।", Key.Kind.PUNCT, 0.85f, ","),
+        Key("↵", "", Key.Kind.ENTER, 1.15f)
     )
 
     // The flag marks the mode that actually makes this keyboard Nepali. दे is
