@@ -35,7 +35,7 @@ import android.widget.TextView
 class KeyboardLayoutView(
     context: Context,
     private val actions: KeyboardActions,
-    suggestions: SuggestionBar
+    private val suggestions: SuggestionBar
 ) : LinearLayout(context) {
 
     private val keys = KeyGrid(context, actions)
@@ -43,13 +43,32 @@ class KeyboardLayoutView(
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(BG)
         addView(suggestions, LayoutParams(LayoutParams.MATCH_PARENT, dp(SuggestionBar.HEIGHT_DP)))
         addView(keys, LayoutParams(LayoutParams.MATCH_PARENT, dp(KEYBOARD_HEIGHT_DP)))
         addView(emojiPad, LayoutParams(LayoutParams.MATCH_PARENT, dp(KEYBOARD_HEIGHT_DP)))
         emojiPad.visibility = GONE
         keys.onEmojiRequest = { showEmoji(true) }
         emojiPad.onBack = { showEmoji(false) }
+        applyTheme()
+    }
+
+    /**
+     * The settings screen and the keyboard live in different processes' minds:
+     * an IME is not on screen while its settings are being changed. Re-reading
+     * the palette every time the keyboard is shown is both the simplest place
+     * to catch a change and the only one that is always correct.
+     */
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE) applyTheme()
+    }
+
+    private fun applyTheme() {
+        Theme.reload(context)
+        setBackgroundColor(Theme.palette.bg)
+        suggestions.applyTheme()
+        keys.invalidate()
+        emojiPad.applyTheme()
     }
 
     private fun showEmoji(show: Boolean) {
@@ -66,7 +85,6 @@ class KeyboardLayoutView(
         // screen — noticeably shorter than the stock keyboard, which made the
         // keys feel cramped and easy to miss.
         const val KEYBOARD_HEIGHT_DP = 300
-        private val BG = Color.parseColor("#0F1115")
     }
 }
 
@@ -184,11 +202,9 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        color = Color.WHITE
     }
     private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        color = LABEL_HINT
     }
 
     private val repeatHandler = Handler(Looper.getMainLooper())
@@ -242,6 +258,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         if (mode == 2 && !symbols && shifted && index == 2) devaShiftRow else row
 
     override fun onDraw(canvas: Canvas) {
+        val p = Theme.palette
         // Narrower gap than before: the space between keys was eating room the
         // key face could use, which is what made the buttons look small.
         val gap = dp(1.5f)
@@ -249,10 +266,10 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         rows.forEachIndexed { ri, row ->
             visibleRow(ri, row).forEach { k ->
                 keyPaint.color = when {
-                    k === pressed -> KEY_PRESSED
-                    k.kind == Key.Kind.LETTER || k.kind == Key.Kind.DIGIT -> KEY
-                    k.kind == Key.Kind.ENTER -> KEY_ACCENT
-                    else -> KEY_MOD
+                    k === pressed -> p.keyPressed
+                    k.kind == Key.Kind.LETTER || k.kind == Key.Kind.DIGIT -> p.key
+                    k.kind == Key.Kind.ENTER -> p.accent
+                    else -> p.keyMod
                 }
                 val r = RectF(
                     k.bounds.left + gap, k.bounds.top + gap,
@@ -271,9 +288,16 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
                     label == FLAG -> dp(20f)
                     else -> dp(16f)
                 }
-                textPaint.color = if (isChar) Color.WHITE else LABEL_MOD
+                // Enter sits on the red key in both themes, so its label is the
+                // one thing that cannot follow the palette.
+                textPaint.color = when {
+                    k.kind == Key.Kind.ENTER -> Color.WHITE
+                    isChar -> p.label
+                    else -> p.labelMod
+                }
 
                 if (k.hint.isNotEmpty()) {
+                    hintPaint.color = p.labelHint
                     hintPaint.textSize = dp(11f)
                     canvas.drawText(k.hint, r.centerX(), r.top + dp(15f), hintPaint)
                 }
@@ -395,12 +419,6 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         /** Long enough not to trip on a slow tap, short enough not to feel stuck. */
         private const val LONGPRESS_MS = 320L
         private const val FLAG = "🇳🇵"
-        private val KEY = Color.parseColor("#272B33")
-        private val KEY_MOD = Color.parseColor("#1A1D23")
-        private val KEY_PRESSED = Color.parseColor("#3A3F49")
-        private val KEY_ACCENT = Color.parseColor("#E8333A")
-        private val LABEL_MOD = Color.parseColor("#C3C7CE")
-        private val LABEL_HINT = Color.parseColor("#767B85")
     }
 }
 
@@ -416,9 +434,11 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
 
     var onBack: (() -> Unit)? = null
 
+    private val bar: LinearLayout
+    private val barLabels = ArrayList<TextView>(3)
+
     init {
         orientation = VERTICAL
-        setBackgroundColor(Color.parseColor("#0F1115"))
         val scroll = ScrollView(context)
         val grid = LinearLayout(context).apply { orientation = VERTICAL }
         EMOJI.chunked(COLUMNS).forEach { rowChars ->
@@ -429,7 +449,16 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         }
         scroll.addView(grid)
         addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
-        addView(bottomBar(), LayoutParams(LayoutParams.MATCH_PARENT, dp(46)))
+        bar = bottomBar()
+        addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, dp(46)))
+        applyTheme()
+    }
+
+    fun applyTheme() {
+        val p = Theme.palette
+        setBackgroundColor(p.bg)
+        bar.setBackgroundColor(p.keyMod)
+        barLabels.forEach { it.setTextColor(p.labelMod) }
     }
 
     private fun cell(e: String) = TextView(context).apply {
@@ -444,7 +473,6 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
 
     private fun bottomBar() = LinearLayout(context).apply {
         orientation = HORIZONTAL
-        setBackgroundColor(Color.parseColor("#1A1D23"))
         addView(barKey("ABC", 2f) { onBack?.invoke() })
         addView(barKey("space", 4f) { actions.onDirectText(" ") })
         addView(barKey("⌫", 2f) { actions.onBackspace() })
@@ -454,11 +482,11 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         TextView(context).apply {
             text = label
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#C3C7CE"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             isClickable = true
             setOnClickListener { click() }
             layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, weight)
+            barLabels.add(this)
         }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
