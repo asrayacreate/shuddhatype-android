@@ -181,14 +181,15 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
 
     // Five keys. Emoji moved onto a hold of the 123 key: it is opened a few
     // times a day, while space is hit on every word, and a key that is not
-    // there is the only kind that costs nothing. Space now takes 65% of the
-    // row — wider than any Nepali keyboard I have measured against.
+    // there is the only kind that costs nothing. Space lands at 61% — the
+    // widest it goes before the mode and layer keys drop under 40dp, which is
+    // the point where a thumb starts missing them.
     private fun bottomRow() = listOf(
-        Key(FLAG, "", Key.Kind.MODE, 1.0f),
-        Key("123", "", Key.Kind.LAYER, 1.0f, "☺", Key.Kind.EMOJI),
-        Key("space", " ", Key.Kind.SPACE, 7.6f),
-        Key("।", "।", Key.Kind.PUNCT, 0.85f, ","),
-        Key("↵", "", Key.Kind.ENTER, 1.15f)
+        Key(FLAG, "", Key.Kind.MODE, 1.15f),
+        Key("123", "", Key.Kind.LAYER, 1.15f, "☺", Key.Kind.EMOJI),
+        Key("space", " ", Key.Kind.SPACE, 6.8f),
+        Key("।", "।", Key.Kind.PUNCT, 0.9f, ","),
+        Key("↵", "", Key.Kind.ENTER, 1.2f)
     )
 
     // The flag marks the mode that actually makes this keyboard Nepali. दे is
@@ -457,8 +458,13 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     companion object {
         private const val REPEAT_DELAY_MS = 400L
         private const val REPEAT_MS = 55L
-        /** Long enough not to trip on a slow tap, short enough not to feel stuck. */
-        private const val LONGPRESS_MS = 320L
+        /**
+         * Raised from 320ms after stray quotes and brackets started appearing
+         * mid-sentence: a thumb resting on a key for a third of a second is
+         * still just typing. 420 is past that and short enough that a
+         * deliberate hold does not feel stuck.
+         */
+        private const val LONGPRESS_MS = 420L
         private const val FLAG = "🇳🇵"
     }
 }
