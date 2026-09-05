@@ -9,6 +9,9 @@ package com.shuddhatype.engine
  *   3. filter      keep only strings the lexicon says are real words
  *   4. rank        corpus frequency picks the winner; distance from what was
  *                  typed breaks near-ties
+ *   5. fuzzy       only if 3 kept nothing — the word was mistyped, not merely
+ *                  spelled ambiguously, so [Fuzzy] searches the wordlist by
+ *                  edit distance instead
  *
  * A "unit" is one consonant plus its matra, an independent vowel, or a raw
  * passthrough character. Modelling it this way (instead of on the final string)
@@ -125,7 +128,7 @@ object Transliterator {
         return d
     }
 
-    enum class Source { SHORT, DICT, ENGLISH, SHUDDHI, RULE_WORD, RULE, JOINED, ROMAN }
+    enum class Source { SHORT, DICT, ENGLISH, SHUDDHI, RULE_WORD, RULE, FUZZY, JOINED, ROMAN }
 
     data class Candidate(val word: String, val source: Source)
 
@@ -138,6 +141,13 @@ object Transliterator {
 
     /** Below this, a word is too short to guess English from. See [English]. */
     private const val MIN_ROMAN_FALLBACK = 4
+
+    /**
+     * Typo corrections are guesses, so the bar shows few of them. Three is
+     * enough to catch the intended word without burying the Roman fallback
+     * that a brand or a name needs.
+     */
+    private const val FUZZY_LIMIT = 3
 
     fun candidates(roman: String, lex: Lexicon, limit: Int = 5): List<Candidate> {
         val key = roman.lowercase()
@@ -181,6 +191,19 @@ object Transliterator {
 
         // 6. raw rule output, always available as a fallback
         push(base, Source.RULE)
+
+        // 6b. No legal spelling of what was typed is a word, so this is a typo
+        //     rather than an ambiguity — a letter missing, doubled, swapped, or
+        //     simply wrong. variants() has nothing left to resolve; only the
+        //     wordlist can help, searched by edit distance.
+        //
+        //     Deliberately after step 6: the rule output stays first, so space
+        //     still commits exactly what the user typed and best() is unchanged.
+        //     A guess that silently overwrites a correct but unlisted word is
+        //     far worse than one sitting a tap away.
+        if (beforeFallback == 0) {
+            lex.nearMisses(base, FUZZY_LIMIT).forEach { push(it, Source.FUZZY) }
+        }
 
         // 7. Nothing above recognised the word — it is English we do not list,
         //    a brand, or a name. The rule output stays first so a genuine Nepali

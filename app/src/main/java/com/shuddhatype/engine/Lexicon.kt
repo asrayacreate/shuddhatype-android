@@ -20,6 +20,12 @@ class Lexicon {
 
     private var ranks: HashMap<String, Int> = HashMap(0)
 
+    /**
+     * Built from words.txt only, so it never corrects a typo into a verb form
+     * that was generated rather than observed. See [Fuzzy].
+     */
+    private val fuzzyIndex = Fuzzy()
+
     @Volatile
     var isReady: Boolean = false
         private set
@@ -30,6 +36,14 @@ class Lexicon {
 
     /** Rank of [word], or [Int.MAX_VALUE] if unknown. */
     fun rankOf(word: String): Int = ranks[word] ?: Int.MAX_VALUE
+
+    /**
+     * Near misses for a word the rules could not resolve, best first. Empty
+     * until [isReady] — a keyboard that is still loading offers what it has
+     * rather than making the user wait.
+     */
+    fun nearMisses(word: String, limit: Int): List<String> =
+        if (isReady) fuzzyIndex.search(word, limit) else emptyList()
 
     /**
      * [open] returns the raw gzip stream for an asset name. On Android pass
@@ -48,6 +62,9 @@ class Lexicon {
         // this class could do.
         val map = HashMap<String, Int>(220_000)
         words.forEachIndexed { i, w -> map.putIfAbsent(w, i) }
+
+        // Before the verb expansion, so the index holds attested words only.
+        fuzzyIndex.build(words)
 
         val allRoots = roots + VerbForms.VOWEL_ROOTS
         VerbForms.build(allRoots, { map[it] }) { form, rank ->
@@ -73,6 +90,7 @@ class Lexicon {
             val lex = Lexicon()
             val map = HashMap<String, Int>(220_000)
             words.forEachIndexed { i, w -> map.putIfAbsent(w, i) }
+            lex.fuzzyIndex.build(words)
             VerbForms.build(roots + VerbForms.VOWEL_ROOTS, { map[it] }) { form, rank ->
                 if (!map.containsKey(form)) map[form] = rank
             }
