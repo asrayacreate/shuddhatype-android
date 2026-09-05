@@ -70,11 +70,18 @@ class KeyboardLayoutView(
     }
 }
 
+/**
+ * [hint] is what a long press produces — the small grey character printed
+ * above the label. It is what keeps the 123 layer off the common path: a
+ * bracket, a colon or a Devanagari digit is one hold away instead of a layer
+ * switch, a tap and a switch back.
+ */
 private class Key(
     val label: String,
     val output: String,
     val kind: Kind = Kind.LETTER,
-    val weight: Float = 1f
+    val weight: Float = 1f,
+    val hint: String = ""
 ) {
     enum class Kind { LETTER, DIGIT, SHIFT, BACKSPACE, SPACE, ENTER, MODE, LAYER, EMOJI, PUNCT }
     var bounds = RectF()
@@ -89,6 +96,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     private var shifted = false
     private var sensitive = false
     private var pressed: Key? = null
+    private var longPressFired = false
     var onEmojiRequest: (() -> Unit)? = null
 
     private val rows: List<List<Key>>
@@ -98,14 +106,24 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
             else -> romanRows
         }
 
-    private fun digits(s: String) = s.map { Key(it.toString(), it.toString(), Key.Kind.DIGIT) }
+    /** [hints] is read position by position; a shorter string leaves the rest bare. */
+    private fun digits(s: String, hints: String = "") = s.mapIndexed { i, c ->
+        Key(c.toString(), c.toString(), Key.Kind.DIGIT, 1f, hints.getOrNull(i)?.toString() ?: "")
+    }
 
+    private fun letters(s: String, hints: String = "") = s.mapIndexed { i, c ->
+        Key(c.toString(), c.toString(), Key.Kind.LETTER, 1f, hints.getOrNull(i)?.toString() ?: "")
+    }
+
+    // The digit row types Latin numerals, because that is what phone numbers,
+    // prices and forms expect. Holding a key gives the Devanagari numeral for
+    // the times a document wants २०८२ instead of 2082.
     private val romanRows = listOf(
-        digits("1234567890"),
-        "qwertyuiop".map { Key(it.toString(), it.toString()) },
-        "asdfghjkl".map { Key(it.toString(), it.toString()) },
+        digits("1234567890", "१२३४५६७८९०"),
+        letters("qwertyuiop", "@#\$_&-+()/"),
+        letters("asdfghjkl", "*\"':;!?~="),
         listOf(Key("⇧", "", Key.Kind.SHIFT, 1.5f)) +
-            "zxcvbnm".map { Key(it.toString(), it.toString()) } +
+            letters("zxcvbnm", "%\\|<>[]") +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         bottomRow()
     )
@@ -114,41 +132,45 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     // of use, not by the traditional alphabet order — the common consonants
     // belong under the fingers.
     private val devaRows = listOf(
-        digits("१२३४५६७८९०"),
-        "ािीुूेैोौ".map { Key(it.toString(), it.toString()) },
-        "कखगघचछजझटठ".map { Key(it.toString(), it.toString()) },
+        digits("१२३४५६७८९०", "1234567890"),
+        letters("ािीुूेैोौ"),
+        letters("कखगघचछजझटठ"),
         listOf(Key("⇧", "", Key.Kind.SHIFT, 1.5f)) +
-            "यरलवसशहँं्".map { Key(it.toString(), it.toString()) } +
+            letters("यरलवसशहँं्") +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         bottomRow()
     )
 
     // Second Devanagari page reached with ⇧ — the letters that did not fit.
-    private val devaShiftRow = "डतथदधनपबभम".map { Key(it.toString(), it.toString()) }
+    private val devaShiftRow = letters("डतथदधनपबभम")
 
     private val symbolRows = listOf(
-        digits("1234567890"),
+        digits("1234567890", "१२३४५६७८९०"),
         "@#\$_&-+()/".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) },
         listOf(Key("=\\<", "", Key.Kind.SHIFT, 1.5f)) +
             "*\"':;!?".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) } +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         listOf(
             Key("ABC", "", Key.Kind.LAYER, 1.5f),
-            Key("☺", "", Key.Kind.EMOJI, 1.2f),
-            Key(",", ",", Key.Kind.PUNCT),
-            Key("space", " ", Key.Kind.SPACE, 4f),
-            Key(".", ".", Key.Kind.PUNCT),
-            Key("↵", "", Key.Kind.ENTER, 1.5f)
+            Key("☺", "", Key.Kind.EMOJI, 1.1f),
+            Key(",", ",", Key.Kind.PUNCT, 0.9f),
+            Key("space", " ", Key.Kind.SPACE, 4.6f),
+            Key(".", ".", Key.Kind.PUNCT, 0.9f),
+            Key("↵", "", Key.Kind.ENTER, 1.4f)
         )
     )
 
+    // Space now takes about 42% of the row, up from 38%. The comma and the
+    // danda sit either side of it — the two marks a Nepali sentence actually
+    // needs — and each holds a second mark: , -> ? and । -> .
     private fun bottomRow() = listOf(
-        Key(FLAG, "", Key.Kind.MODE, 1.4f),
-        Key("123", "", Key.Kind.LAYER, 1.4f),
-        Key("☺", "", Key.Kind.EMOJI, 1.2f),
-        Key("space", " ", Key.Kind.SPACE, 4f),
-        Key("।", "।", Key.Kind.PUNCT),
-        Key("↵", "", Key.Kind.ENTER, 1.5f)
+        Key(FLAG, "", Key.Kind.MODE, 1.2f),
+        Key("123", "", Key.Kind.LAYER, 1.2f),
+        Key("☺", "", Key.Kind.EMOJI, 1.0f),
+        Key(",", ",", Key.Kind.PUNCT, 0.9f, "?"),
+        Key("space", " ", Key.Kind.SPACE, 4.8f),
+        Key("।", "।", Key.Kind.PUNCT, 0.9f, "."),
+        Key("↵", "", Key.Kind.ENTER, 1.4f)
     )
 
     // The flag marks the mode that actually makes this keyboard Nepali. दे is
@@ -164,9 +186,14 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         textAlign = Paint.Align.CENTER
         color = Color.WHITE
     }
+    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        color = LABEL_HINT
+    }
 
     private val repeatHandler = Handler(Looper.getMainLooper())
     private var repeatRunnable: Runnable? = null
+    private var longPressRunnable: Runnable? = null
 
     fun setSensitive(value: Boolean) {
         sensitive = value
@@ -246,27 +273,54 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
                 }
                 textPaint.color = if (isChar) Color.WHITE else LABEL_MOD
 
-                val cy = r.centerY() - (textPaint.descent() + textPaint.ascent()) / 2
+                if (k.hint.isNotEmpty()) {
+                    hintPaint.textSize = dp(11f)
+                    canvas.drawText(k.hint, r.centerX(), r.top + dp(15f), hintPaint)
+                }
+                // Nudge the label down so the hint above it does not crowd it.
+                val drop = if (k.hint.isNotEmpty()) dp(5f) else 0f
+                val cy = r.centerY() + drop - (textPaint.descent() + textPaint.ascent()) / 2
                 canvas.drawText(label, r.centerX(), cy, textPaint)
             }
         }
     }
 
+    /**
+     * Backspace fires on press and repeats; everything else fires on release.
+     *
+     * Committing letters on press felt fractionally quicker, but it leaves no
+     * room for a long press — the character is already in the field by the time
+     * the finger has been held. Release is what every other keyboard does, so
+     * nothing about this reads as slow in the hand.
+     */
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val key = keyAt(event.x, event.y)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                pressed = key; invalidate()
-                key?.let { fire(it); if (it.kind == Key.Kind.BACKSPACE) startRepeat(it) }
+                pressed = key
+                longPressFired = false
+                invalidate()
+                key?.let {
+                    if (it.kind == Key.Kind.BACKSPACE) { fire(it); startRepeat(it) }
+                    else if (it.hint.isNotEmpty()) startLongPress(it)
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 // Sliding off a key cancels it. Fingers drift on small keys, and
                 // committing the key they drifted onto is worse than doing nothing.
-                if (key !== pressed) { stopRepeat(); pressed = null; invalidate() }
+                if (key !== pressed) {
+                    stopRepeat(); stopLongPress(); pressed = null; invalidate()
+                }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                stopRepeat(); pressed = null; invalidate()
+            MotionEvent.ACTION_UP -> {
+                val k = pressed
+                stopRepeat(); stopLongPress()
+                if (k != null && !longPressFired && k.kind != Key.Kind.BACKSPACE) fire(k)
+                pressed = null; invalidate()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                stopRepeat(); stopLongPress(); pressed = null; invalidate()
             }
         }
         return true
@@ -297,6 +351,23 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         }
     }
 
+    private fun startLongPress(k: Key) {
+        stopLongPress()
+        longPressRunnable = Runnable {
+            longPressFired = true
+            // Routed through onPunctuation so a half-typed word is committed
+            // first — a bracket must not be swallowed into the composing buffer.
+            actions.onPunctuation(k.hint)
+            pressed = null
+            invalidate()
+        }.also { repeatHandler.postDelayed(it, LONGPRESS_MS) }
+    }
+
+    private fun stopLongPress() {
+        longPressRunnable?.let { repeatHandler.removeCallbacks(it) }
+        longPressRunnable = null
+    }
+
     private fun startRepeat(k: Key) {
         stopRepeat()
         repeatRunnable = object : Runnable {
@@ -312,19 +383,24 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         repeatRunnable = null
     }
 
-    override fun onDetachedFromWindow() { stopRepeat(); super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() {
+        stopRepeat(); stopLongPress(); super.onDetachedFromWindow()
+    }
 
     private fun dp(v: Float) = v * resources.displayMetrics.density
 
     companion object {
         private const val REPEAT_DELAY_MS = 400L
         private const val REPEAT_MS = 55L
+        /** Long enough not to trip on a slow tap, short enough not to feel stuck. */
+        private const val LONGPRESS_MS = 320L
         private const val FLAG = "🇳🇵"
         private val KEY = Color.parseColor("#272B33")
         private val KEY_MOD = Color.parseColor("#1A1D23")
         private val KEY_PRESSED = Color.parseColor("#3A3F49")
         private val KEY_ACCENT = Color.parseColor("#E8333A")
         private val LABEL_MOD = Color.parseColor("#C3C7CE")
+        private val LABEL_HINT = Color.parseColor("#767B85")
     }
 }
 
