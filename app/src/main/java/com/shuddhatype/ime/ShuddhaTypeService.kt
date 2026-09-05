@@ -4,8 +4,10 @@ import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import com.shuddhatype.engine.Lexicon
+import com.shuddhatype.engine.NepaliDate
 import com.shuddhatype.engine.NepaliNumber
 import com.shuddhatype.engine.Transliterator
+import java.util.Calendar
 import kotlin.concurrent.thread
 
 /**
@@ -147,6 +149,42 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         finishWord(separator = text)
     }
 
+    /**
+     * The मिति key does not type anything — it offers today's date in the four
+     * shapes Nepali documents actually use, and the user picks one. Committing
+     * a single format would be guessing: a letter heads with २०८३ भदौ २०, a
+     * ledger wants २०८३/०५/२०, and neither is a reasonable default for the
+     * other.
+     */
+    override fun onDate() {
+        if (!::suggestionBar.isInitialized) return
+        digits.setLength(0)
+        finishWord(separator = "")
+
+        val now = Calendar.getInstance()
+        val bs = NepaliDate.fromGregorian(
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH) + 1,
+            now.get(Calendar.DAY_OF_MONTH)
+        ) ?: return
+
+        val y = NepaliDate.deva(bs.year)
+        val mm = NepaliDate.deva(bs.month, 2)
+        val dd = NepaliDate.deva(bs.day, 2)
+        val d = NepaliDate.deva(bs.day)
+        val month = NepaliDate.monthName(bs.month)
+        val weekday = NepaliDate.weekdayName(bs.weekday)
+
+        suggestionBar.show(
+            listOf(
+                "$y/$mm/$dd",
+                "$y $month $d",
+                "$y साल $month $d गते",
+                "$month $d, $y $weekday"
+            )
+        )
+    }
+
     /** Commit the current best guess, then the separator. */
     private fun finishWord(separator: String) {
         val ic = currentInputConnection ?: return
@@ -241,4 +279,5 @@ interface KeyboardActions {
     fun onSpace()
     fun onEnter()
     fun onPunctuation(text: String)
+    fun onDate()
 }

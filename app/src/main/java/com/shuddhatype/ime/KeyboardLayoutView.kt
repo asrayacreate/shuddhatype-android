@@ -103,7 +103,7 @@ private class Key(
     /** Set when the hint opens something instead of typing something. */
     val hintKind: Kind? = null
 ) {
-    enum class Kind { LETTER, DIGIT, SHIFT, BACKSPACE, SPACE, ENTER, MODE, LAYER, EMOJI, PUNCT }
+    enum class Kind { LETTER, DIGIT, SHIFT, BACKSPACE, SPACE, ENTER, MODE, LAYER, EMOJI, PUNCT, DATE }
     var bounds = RectF()
 }
 
@@ -170,10 +170,14 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         listOf(Key("=\\<", "", Key.Kind.SHIFT, 1.5f)) +
             "*\"':;!?".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) } +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
+        // मिति earns a key of its own here rather than a hold: a hold is only
+        // discoverable once you already know it exists, and nobody guesses that
+        // a keyboard can write today's Bikram Sambat date. Emoji moves onto a
+        // hold of ABC, matching what 123 does on the letters page.
         listOf(
-            Key("ABC", "", Key.Kind.LAYER, 1.2f),
-            Key("☺", "", Key.Kind.EMOJI, 0.95f),
-            Key("space", " ", Key.Kind.SPACE, 6.6f),
+            Key("ABC", "", Key.Kind.LAYER, 1.2f, "☺", Key.Kind.EMOJI),
+            Key("मिति", "", Key.Kind.DATE, 1.4f),
+            Key("space", " ", Key.Kind.SPACE, 5.6f),
             Key(".", ".", Key.Kind.PUNCT, 0.85f, ","),
             Key("↵", "", Key.Kind.ENTER, 1.1f)
         )
@@ -287,6 +291,8 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
                 textPaint.textSize = when {
                     isChar -> dp(23f)
                     label == FLAG -> dp(20f)
+                    // "मिति" is four letters on a narrow key; 16dp overflows it.
+                    k.kind == Key.Kind.DATE -> dp(14f)
                     else -> dp(16f)
                 }
                 // Enter sits on the red key in both themes, so its label is the
@@ -410,6 +416,7 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
             Key.Kind.MODE -> cycleMode()
             Key.Kind.LAYER -> toggleLayer()
             Key.Kind.EMOJI -> onEmojiRequest?.invoke()
+            Key.Kind.DATE -> actions.onDate()
         }
     }
 
