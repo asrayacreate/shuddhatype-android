@@ -169,26 +169,25 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
             "*\"':;!?".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) } +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         listOf(
-            Key("ABC", "", Key.Kind.LAYER, 1.5f),
-            Key("☺", "", Key.Kind.EMOJI, 1.1f),
-            Key(",", ",", Key.Kind.PUNCT, 0.9f),
-            Key("space", " ", Key.Kind.SPACE, 4.6f),
-            Key(".", ".", Key.Kind.PUNCT, 0.9f),
-            Key("↵", "", Key.Kind.ENTER, 1.4f)
+            Key("ABC", "", Key.Kind.LAYER, 1.3f),
+            Key("☺", "", Key.Kind.EMOJI, 1.0f),
+            Key("space", " ", Key.Kind.SPACE, 5.8f),
+            Key(".", ".", Key.Kind.PUNCT, 0.9f, ","),
+            Key("↵", "", Key.Kind.ENTER, 1.2f)
         )
     )
 
-    // Space now takes about 42% of the row, up from 38%. The comma and the
-    // danda sit either side of it — the two marks a Nepali sentence actually
-    // needs — and each holds a second mark: , -> ? and । -> .
+    // Six keys, not seven. The comma had its own key here and the row felt
+    // packed; it now lives on a hold of the danda, which is the mark it shares
+    // a sentence with anyway. That buys space about half the row — from 42% to
+    // 53% — and every remaining key is still wider than a fingertip.
     private fun bottomRow() = listOf(
-        Key(FLAG, "", Key.Kind.MODE, 1.2f),
-        Key("123", "", Key.Kind.LAYER, 1.2f),
+        Key(FLAG, "", Key.Kind.MODE, 1.1f),
+        Key("123", "", Key.Kind.LAYER, 1.1f),
         Key("☺", "", Key.Kind.EMOJI, 1.0f),
-        Key(",", ",", Key.Kind.PUNCT, 0.9f, "?"),
-        Key("space", " ", Key.Kind.SPACE, 4.8f),
-        Key("।", "।", Key.Kind.PUNCT, 0.9f, "."),
-        Key("↵", "", Key.Kind.ENTER, 1.4f)
+        Key("space", " ", Key.Kind.SPACE, 6.2f),
+        Key("।", "।", Key.Kind.PUNCT, 0.9f, ","),
+        Key("↵", "", Key.Kind.ENTER, 1.3f)
     )
 
     // The flag marks the mode that actually makes this keyboard Nepali. दे is
