@@ -65,6 +65,10 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         super.onStartInput(info, restarting)
         composing.setLength(0)
         digits.setLength(0)
+        // Settings can change while the IME is alive, and this is the moment
+        // just before the user could use one. SharedPreferences is cached in
+        // memory after the first read, so re-reading here costs nothing.
+        Shortcuts.reload(this)
         sensitiveField = isSensitiveField(info)
         // onStartInput can run before onCreateInputView(); apply it then instead.
         if (::keyboardView.isInitialized) keyboardView.setSensitive(sensitiveField)
@@ -185,11 +189,25 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         )
     }
 
-    /** Commit the current best guess, then the separator. */
+    /**
+     * Commit the current best guess, then the separator.
+     *
+     * A shortcut wins over the engine here, and does so without asking. Every
+     * other suggestion is the keyboard guessing what you meant; a shortcut is
+     * a rule you wrote yourself, so confirming it every time would defeat it.
+     * See [Shortcuts].
+     *
+     * Nothing guards against this firing in a password field or on the English
+     * page, because nothing needs to: those pages route letters through
+     * onDirectText, so [composing] is empty and there is never a key to match.
+     */
     private fun finishWord(separator: String) {
         val ic = currentInputConnection ?: return
         if (composing.isNotEmpty()) {
-            ic.commitText(Transliterator.best(composing.toString(), lexicon), 1)
+            val typed = composing.toString()
+            val text = Shortcuts.expansionFor(typed)
+                ?: Transliterator.best(typed, lexicon)
+            ic.commitText(text, 1)
             composing.setLength(0)
         }
         if (separator.isNotEmpty()) ic.commitText(separator, 1)
@@ -254,9 +272,14 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         if (!::suggestionBar.isInitialized) return
         if (composing.isEmpty()) { suggestionBar.clear(); return }
         val roman = composing.toString()
-        val words = ArrayList<String>(SUGGESTION_LIMIT + 1)
+        val words = ArrayList<String>(SUGGESTION_LIMIT + 2)
+        // Shown first because it is what space will commit. The composing text
+        // still shows the Devanagari — swapping a long address in under the
+        // cursor mid-word would move the text about while you are still typing.
+        // The bar is where you look to see what is coming.
+        Shortcuts.expansionFor(roman)?.let { words.add(it) }
         Transliterator.candidates(roman, lexicon, limit = SUGGESTION_LIMIT)
-            .forEach { words.add(it.word) }
+            .forEach { if (!words.contains(it.word)) words.add(it.word) }
         // The Roman spelling itself is always offered. Nepalis write English
         // words mid-sentence constantly ("मेरो keyboard"), and forcing a mode
         // switch for one word is the fastest way to lose the user.
