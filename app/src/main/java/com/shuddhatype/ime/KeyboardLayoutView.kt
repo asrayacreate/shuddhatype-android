@@ -99,7 +99,9 @@ private class Key(
     val output: String,
     val kind: Kind = Kind.LETTER,
     val weight: Float = 1f,
-    val hint: String = ""
+    val hint: String = "",
+    /** Set when the hint opens something instead of typing something. */
+    val hintKind: Kind? = null
 ) {
     enum class Kind { LETTER, DIGIT, SHIFT, BACKSPACE, SPACE, ENTER, MODE, LAYER, EMOJI, PUNCT }
     var bounds = RectF()
@@ -169,25 +171,22 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
             "*\"':;!?".map { Key(it.toString(), it.toString(), Key.Kind.PUNCT) } +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         listOf(
-            Key("ABC", "", Key.Kind.LAYER, 1.3f),
-            Key("☺", "", Key.Kind.EMOJI, 1.0f),
-            Key("space", " ", Key.Kind.SPACE, 5.8f),
-            Key(".", ".", Key.Kind.PUNCT, 0.9f, ","),
-            Key("↵", "", Key.Kind.ENTER, 1.2f)
+            Key("ABC", "", Key.Kind.LAYER, 1.2f),
+            Key("☺", "", Key.Kind.EMOJI, 0.95f),
+            Key("space", " ", Key.Kind.SPACE, 6.6f),
+            Key(".", ".", Key.Kind.PUNCT, 0.85f, ","),
+            Key("↵", "", Key.Kind.ENTER, 1.1f)
         )
     )
 
-    // Six keys, not seven. The comma had its own key here and the row felt
-    // packed; it now lives on a hold of the danda, which is the mark it shares
-    // a sentence with anyway. The modifiers around space are then trimmed to
-    // what a thumb still finds — space ends up at 59% of the row, wider than
-    // any Nepali keyboard I have measured, and the mode and layer keys stay
-    // above 30dp on a normal phone.
+    // Five keys. Emoji moved onto a hold of the 123 key: it is opened a few
+    // times a day, while space is hit on every word, and a key that is not
+    // there is the only kind that costs nothing. Space now takes 65% of the
+    // row — wider than any Nepali keyboard I have measured against.
     private fun bottomRow() = listOf(
         Key(FLAG, "", Key.Kind.MODE, 1.0f),
-        Key("123", "", Key.Kind.LAYER, 1.0f),
-        Key("☺", "", Key.Kind.EMOJI, 0.9f),
-        Key("space", " ", Key.Kind.SPACE, 7.0f),
+        Key("123", "", Key.Kind.LAYER, 1.0f, "☺", Key.Kind.EMOJI),
+        Key("space", " ", Key.Kind.SPACE, 7.6f),
         Key("।", "।", Key.Kind.PUNCT, 0.85f, ","),
         Key("↵", "", Key.Kind.ENTER, 1.15f)
     )
@@ -417,9 +416,13 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         stopLongPress()
         longPressRunnable = Runnable {
             longPressFired = true
-            // Routed through onPunctuation so a half-typed word is committed
-            // first — a bracket must not be swallowed into the composing buffer.
-            actions.onPunctuation(k.hint)
+            if (k.hintKind != null) {
+                fire(Key(k.hint, "", k.hintKind))
+            } else {
+                // Routed through onPunctuation so a half-typed word is committed
+                // first — a bracket must not be swallowed into the composing buffer.
+                actions.onPunctuation(k.hint)
+            }
             pressed = null
             invalidate()
         }.also { repeatHandler.postDelayed(it, LONGPRESS_MS) }
