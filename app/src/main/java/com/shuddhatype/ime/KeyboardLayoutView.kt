@@ -308,6 +308,43 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
                 canvas.drawText(label, r.centerX(), cy, textPaint)
             }
         }
+        // Last, so it sits over its neighbours rather than under them.
+        pressed?.let { drawPreview(canvas, it, p) }
+    }
+
+    /**
+     * The raised bubble over the key being held.
+     *
+     * A finger covers the key it is pressing, so recolouring the key underneath
+     * tells the user nothing — they cannot see it. The bubble puts the
+     * character somewhere the hand is not.
+     *
+     * Only characters get one. Nobody needs confirmation that they hit space.
+     */
+    private fun drawPreview(canvas: Canvas, k: Key, p: Theme.Palette) {
+        if (k.kind != Key.Kind.LETTER && k.kind != Key.Kind.DIGIT) return
+
+        val w = k.bounds.width() * 1.45f
+        val h = k.bounds.height() * 1.05f
+        // Keep the bubble on screen for the outermost keys, where centring it
+        // on the key would push half of it past the edge.
+        val half = w / 2
+        val cx = k.bounds.centerX().coerceIn(half + dp(2f), width - half - dp(2f))
+
+        var top = k.bounds.top - h - dp(3f)
+        // The number row has nothing above it, so its bubble drops below.
+        if (top < 0f) top = k.bounds.bottom + dp(3f)
+
+        val box = RectF(cx - half, top, cx + half, top + h)
+        keyPaint.color = p.keyPreview
+        canvas.drawRoundRect(box, dp(9f), dp(9f), keyPaint)
+
+        val label = if (shifted && k.kind == Key.Kind.LETTER && mode != 2)
+            k.label.uppercase() else k.label
+        textPaint.color = Color.WHITE
+        textPaint.textSize = dp(30f)
+        val cy = box.centerY() - (textPaint.descent() + textPaint.ascent()) / 2
+        canvas.drawText(label, box.centerX(), cy, textPaint)
     }
 
     /**

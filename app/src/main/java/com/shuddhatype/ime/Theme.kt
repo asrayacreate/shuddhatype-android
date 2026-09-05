@@ -26,6 +26,7 @@ object Theme {
         val key: Int,
         val keyMod: Int,
         val keyPressed: Int,
+        val keyPreview: Int,
         val accent: Int,
         val label: Int,
         val labelMod: Int,
@@ -46,6 +47,7 @@ object Theme {
         key = Color.parseColor("#272B33"),
         keyMod = Color.parseColor("#1A1D23"),
         keyPressed = Color.parseColor("#3A3F49"),
+        keyPreview = Color.parseColor("#2E6FE8"),
         accent = Color.parseColor("#E8333A"),
         label = Color.parseColor("#FFFFFF"),
         labelMod = Color.parseColor("#C3C7CE"),
@@ -66,6 +68,10 @@ object Theme {
         key = Color.parseColor("#FFFFFF"),
         keyMod = Color.parseColor("#C4CAD4"),
         keyPressed = Color.parseColor("#AEB5C1"),
+        // The same blue in both themes. The preview has to read as "this is
+        // what you just hit" against a white key and a near-black one alike,
+        // and the brand red would read as an error.
+        keyPreview = Color.parseColor("#2E6FE8"),
         accent = Color.parseColor("#E8333A"),
         label = Color.parseColor("#14161A"),
         labelMod = Color.parseColor("#2E333B"),
