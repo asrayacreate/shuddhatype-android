@@ -126,6 +126,22 @@ class SetupActivity : Activity() {
         }
         root.addView(stepBlock("३", getString(R.string.setup_try), null, preview))
 
+        // Step 4 — the settings screen.
+        //
+        // Android only offers it as a gear buried in the system keyboard list,
+        // three screens deep, and people who want to add a shortcut do not find
+        // it. The app icon is where they look instead, so this is where it goes.
+        // Note the fully qualified name: android.provider.Settings is imported
+        // above for the system screens, and the bare name would resolve to that.
+        root.addView(stepBlock(
+            "४",
+            "शर्टकट थप्ने, रङ फेर्ने",
+            null,
+            actionButton("सेटिङ खोल्ने") {
+                startActivity(Intent(this, com.shuddhatype.ime.SettingsActivity::class.java))
+            }
+        ))
+
         root.addView(TextView(this).apply {
             text = "तपाईंले टाइप गरेको कुनै पनि कुरा फोनबाहिर जाँदैन। " +
                 "इन्टरनेट चाहिँदैन, खाता चाहिँदैन।"
