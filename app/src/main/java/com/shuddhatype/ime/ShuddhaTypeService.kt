@@ -4,6 +4,7 @@ import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import com.shuddhatype.engine.Lexicon
+import com.shuddhatype.engine.NepaliNumber
 import com.shuddhatype.engine.Transliterator
 import kotlin.concurrent.thread
 
@@ -31,6 +32,14 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     /** Roman letters typed since the last word boundary. */
     private val composing = StringBuilder()
 
+    /**
+     * Digits typed in an unbroken run, in Latin form whatever page they came
+     * from. They are already committed to the field — this is only kept so the
+     * bar can offer the same amount written out. Anything that is not another
+     * digit ends the run.
+     */
+    private val digits = StringBuilder()
+
     override fun onCreate() {
         super.onCreate()
         thread(name = "shuddha-lexicon") {
@@ -53,6 +62,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
         composing.setLength(0)
+        digits.setLength(0)
         sensitiveField = isSensitiveField(info)
         // onStartInput can run before onCreateInputView(); apply it then instead.
         if (::keyboardView.isInitialized) keyboardView.setSensitive(sensitiveField)
@@ -70,6 +80,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     // ---- KeyboardActions ----
 
     override fun onLetter(ch: Char) {
+        digits.setLength(0)
         composing.append(ch)
         updateComposingText()
         refreshSuggestions()
@@ -83,11 +94,20 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     override fun onDirectText(text: String) {
         finishWord(separator = "")
         currentInputConnection?.commitText(text, 1)
+
+        val digit = if (text.length == 1) latinDigit(text[0]) else null
+        if (digit != null) {
+            digits.append(digit)
+            showAmount()
+        } else {
+            digits.setLength(0)
+        }
     }
 
     override fun onModeChanged(nepali: Boolean) {
         if (nepaliMode != nepali) finishWord(separator = "")
         nepaliMode = nepali
+        digits.setLength(0)
         if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
 
@@ -96,21 +116,34 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
             composing.setLength(composing.length - 1)
             updateComposingText()
             refreshSuggestions()
-        } else {
-            currentInputConnection?.deleteSurroundingText(1, 0)
+            return
+        }
+        currentInputConnection?.deleteSurroundingText(1, 0)
+        if (digits.isNotEmpty()) {
+            digits.setLength(digits.length - 1)
+            showAmount()
         }
     }
 
     override fun onSpace() {
+        // Space does not end the number: people type "रु. 5 45 000" as often as
+        // they type it unbroken, and losing the run on a space would mean the
+        // amount never appears for them.
+        if (digits.isNotEmpty()) {
+            currentInputConnection?.commitText(" ", 1)
+            return
+        }
         finishWord(separator = " ")
     }
 
     override fun onEnter() {
+        digits.setLength(0)
         finishWord(separator = "")
         currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_UNSPECIFIED)
     }
 
     override fun onPunctuation(text: String) {
+        digits.setLength(0)
         finishWord(separator = text)
     }
 
@@ -125,9 +158,21 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
 
-    /** The user tapped a suggestion instead of accepting the top one. */
+    /**
+     * The user tapped a suggestion instead of accepting the top one.
+     *
+     * For a word this replaces what was being composed. For an amount the
+     * digits are already committed and staying — a quotation wants the figure
+     * and the words side by side — so the choice is appended instead.
+     */
     private fun commitChoice(word: String) {
-        currentInputConnection?.commitText("$word ", 1)
+        val ic = currentInputConnection ?: return
+        if (digits.isNotEmpty()) {
+            ic.commitText(" $word ", 1)
+            digits.setLength(0)
+        } else {
+            ic.commitText("$word ", 1)
+        }
         composing.setLength(0)
         if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
@@ -140,6 +185,31 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         val ic = currentInputConnection ?: return
         if (composing.isEmpty()) { ic.setComposingText("", 1); return }
         ic.setComposingText(Transliterator.best(composing.toString(), lexicon), 1)
+    }
+
+    /** Devanagari and Latin digit keys both feed the same run. */
+    private fun latinDigit(c: Char): Char? = when (c) {
+        in '0'..'9' -> c
+        in '०'..'९' -> '0' + (c - '०')
+        else -> null
+    }
+
+    /**
+     * The amount, offered three ways: the words alone for prose, the full
+     * अक्षरेपी phrase for a quotation, and the figure regrouped in Devanagari.
+     * Nothing is shown for a single digit, which needs no help.
+     */
+    private fun showAmount() {
+        if (!::suggestionBar.isInitialized) return
+        val raw = digits.toString()
+        val words = if (raw.length >= 2) NepaliNumber.toWords(raw) else null
+        if (words == null) { suggestionBar.clear(); return }
+
+        val out = ArrayList<String>(3)
+        out.add(words)
+        out.add("$words रुपैयाँ मात्र")
+        NepaliNumber.format(raw)?.let { out.add(it) }
+        suggestionBar.show(out)
     }
 
     private fun refreshSuggestions() {
