@@ -135,6 +135,19 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         Key(c.toString(), c.toString(), Key.Kind.LETTER, 1f, hints.getOrNull(i)?.toString() ?: "")
     }
 
+    /**
+     * Like [letters], but each entry is a whole string, so a key can carry a
+     * conjunct the alphabet writes as one letter but Unicode stores as three
+     * (क्ष is क + ् + ष). Write "क|ख" to hang ख on a hold of क.
+     *
+     * Safe on the दे page because mode 2 sends the key's whole output through
+     * onDirectText; only the नेपाली page reduces a key to its first character.
+     */
+    private fun glyphs(vararg spec: String) = spec.map {
+        val parts = it.split("|")
+        Key(parts[0], parts[0], Key.Kind.LETTER, 1f, parts.getOrNull(1) ?: "")
+    }
+
     // The digit row types Latin numerals, because that is what phone numbers,
     // prices and forms expect. Holding a key gives the Devanagari numeral for
     // the times a document wants २०८२ instead of 2082.
@@ -148,21 +161,47 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         bottomRow()
     )
 
-    // Direct Devanagari for people who already type it. Ordered by frequency
-    // of use, not by the traditional alphabet order — the common consonants
-    // belong under the fingers.
+    // Direct Devanagari, laid out in वर्णमाला order across two pages.
+    //
+    // Frequency ordering was tried first and abandoned. This page is for people
+    // who already type Devanagari, and every one of them learned the alphabet in
+    // school; with 33 consonants spread over two pages, knowing which page a
+    // letter is on matters far more than saving a few millimetres of thumb
+    // travel. क ख ग घ ङ in that order is findable without looking. A frequency
+    // shuffle is not.
+    //
+    // Page one carries everything used in the middle of a word — the matras,
+    // the halant, and the first twenty consonants. Independent vowels sit on
+    // page two because they only ever occur word-initially, which is rare
+    // compared with a matra, which can occur in every syllable.
+    //
+    // Eleven keys on the top two rows rather than ten. It costs about 4dp of key
+    // width and is what makes ् and ं reachable without ⇧ — a halant behind a
+    // shift would be pressed on nearly every conjunct.
     private val devaRows = listOf(
         digits("१२३४५६७८९०", "1234567890"),
-        letters("ािीुूेैोौ"),
-        letters("कखगघचछजझटठ"),
+        // ः on a hold of ्, ँ on a hold of ं: each pair is one class of mark, and
+        // the rarer of the two is the one that hides.
+        glyphs("ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्|ः"),
+        glyphs("क", "ख", "ग", "घ", "ङ", "च", "छ", "ज", "झ", "ञ", "ं|ँ"),
         listOf(Key("⇧", "", Key.Kind.SHIFT, 1.5f)) +
-            letters("यरलवसशहँं्") +
+            letters("टठडढणतथदधन") +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         bottomRow()
     )
 
-    // Second Devanagari page reached with ⇧ — the letters that did not fit.
-    private val devaShiftRow = letters("डतथदधनपबभम")
+    // Page two, reached with ⇧: the vowels and the rest of the alphabet.
+    //
+    // The last row is deliberately short. क्ष, त्र and ज्ञ are two glyphs wide
+    // where every other key is one, so the extra width is not waste — it is the
+    // only way those three read as letters rather than as smudges.
+    private val devaShiftRows = listOf(
+        glyphs("अ", "आ", "इ", "ई", "उ", "ऊ", "ऋ", "ए", "ऐ", "ओ", "औ"),
+        glyphs("प", "फ", "ब", "भ", "म", "य", "र", "ल", "व", "श", "ष"),
+        listOf(Key("⇧", "", Key.Kind.SHIFT, 1.5f)) +
+            glyphs("स", "ह", "क्ष", "त्र", "ज्ञ", "ॐ", "ऽ") +
+            listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f))
+    )
 
     private val symbolRows = listOf(
         digits("1234567890", "१२३४५६७८९०"),
@@ -259,8 +298,15 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
     }
 
     /** The Devanagari page swaps its consonant row when shift is held. */
+    /**
+     * ⇧ on the दे page turns over all three letter rows, not one. Ten spare
+     * slots were never going to hold the eleven vowels, the six missing
+     * consonants and the conjuncts; a whole second page holds them with room
+     * left. The digit and bottom rows stay put so ⇧, space and मोड never move
+     * under the thumb.
+     */
     private fun visibleRow(index: Int, row: List<Key>): List<Key> =
-        if (mode == 2 && !symbols && shifted && index == 2) devaShiftRow else row
+        if (mode == 2 && !symbols && shifted && index in 1..3) devaShiftRows[index - 1] else row
 
     override fun onDraw(canvas: Canvas) {
         val p = Theme.palette
