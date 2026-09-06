@@ -54,7 +54,10 @@ class SetupActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            setPadding(dp(24), dp(40), dp(24), dp(40))
+            // Deep bottom padding so the last field can scroll clear of the
+            // keyboard. adjustResize shrinks the window, but with nothing below
+            // the button there is nowhere left to scroll to.
+            setPadding(dp(24), dp(40), dp(24), dp(96))
         }
 
         // Third fallback: if CrashActivity never got to run (e.g. the OS killed
