@@ -25,9 +25,16 @@
                 android:resource="@xml/method" />
         </service>
 
+        <!-- adjustResize on both screens because both now hold text fields.
+             The default lets the keyboard sit on top of the window, which hid
+             the shortcut fields and the थप्ने button under it — the user could
+             not see what they were typing or reach the button. Resizing shrinks
+             the window instead, and since each screen's root is a ScrollView,
+             the focused field is scrolled into view on its own. -->
         <activity
             android:name="com.shuddhatype.ime.SetupActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -35,7 +42,10 @@
             </intent-filter>
         </activity>
 
-        <activity android:name="com.shuddhatype.ime.SettingsActivity" android:exported="false" />
+        <activity
+            android:name="com.shuddhatype.ime.SettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- Its own process, its own (framework, not app-defined) theme, no
              other app resource. If the crash we're reporting is itself a
