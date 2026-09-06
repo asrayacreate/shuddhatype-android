@@ -5,11 +5,13 @@ import com.shuddhatype.R
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -38,10 +40,33 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Theme.reload(this)
-        setContentView(ScrollView(this).apply {
+        val root = ScrollView(this).apply {
             setBackgroundColor(Theme.palette.screenBg)
             addView(buildLayout())
-        })
+        }
+        fitInsets(root)
+        setContentView(root)
+    }
+
+    /**
+     * Leave room for the status bar and the keyboard.
+     *
+     * targetSdk 35 makes Android 15 lay every window out edge to edge, which
+     * turns `adjustResize` into a no-op — the keyboard is painted *over* the
+     * layout rather than shrinking it, hiding whatever field is being typed
+     * into. Below API 30 there is no `ime()` inset type and `adjustResize`
+     * still works on its own.
+     */
+    private fun fitInsets(root: View) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars())
+            val ime = insets.getInsets(WindowInsets.Type.ime())
+            // Keyboard and navigation bar share the bottom edge; the larger of
+            // the two is the whole of what has to be cleared.
+            v.setPadding(0, bars.top, 0, maxOf(bars.bottom, ime.bottom))
+            insets
+        }
     }
 
     /** Rebuild in the new palette without losing what is half-typed. */

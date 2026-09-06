@@ -42,6 +42,18 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
      */
     private val digits = StringBuilder()
 
+    /**
+     * The Latin letters typed since the last separator, on the pages where the
+     * engine composes nothing — EN, and दे when English keys are used.
+     *
+     * A shortcut on the नेपाली page matches [composing], which is still in
+     * flight and can simply be replaced. Here the letters have already gone
+     * into the field one by one, so expanding a shortcut means taking them
+     * back out again before writing the expansion in their place. This is the
+     * record of how many to take back.
+     */
+    private val latinRun = StringBuilder()
+
     override fun onCreate() {
         super.onCreate()
         thread(name = "shuddha-lexicon") {
@@ -65,6 +77,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         super.onStartInput(info, restarting)
         composing.setLength(0)
         digits.setLength(0)
+        latinRun.setLength(0)
         // Settings can change while the IME is alive, and this is the moment
         // just before the user could use one. SharedPreferences is cached in
         // memory after the first read, so re-reading here costs nothing.
@@ -104,6 +117,9 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
 
     override fun onLetter(ch: Char) {
         digits.setLength(0)
+        // The नेपाली page composes instead of committing, so any run the
+        // direct pages were building is over.
+        latinRun.setLength(0)
         composing.append(ch)
         updateComposingText()
         refreshSuggestions()
@@ -118,6 +134,11 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         finishWord(separator = "")
         currentInputConnection?.commitText(text, 1)
 
+        // A single Roman letter extends the run a shortcut could match; a digit,
+        // a symbol or a Devanagari key from the दे page ends it.
+        val letter = text.length == 1 && (text[0] in 'a'..'z' || text[0] in 'A'..'Z')
+        if (letter) latinRun.append(text[0].lowercaseChar()) else latinRun.setLength(0)
+
         val digit = if (text.length == 1) latinDigit(text[0]) else null
         if (digit != null) {
             digits.append(digit)
@@ -131,6 +152,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         if (nepaliMode != nepali) finishWord(separator = "")
         nepaliMode = nepali
         digits.setLength(0)
+        latinRun.setLength(0)
         if (::suggestionBar.isInitialized) suggestionBar.clear()
     }
 
@@ -142,6 +164,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
             return
         }
         currentInputConnection?.deleteSurroundingText(1, 0)
+        if (latinRun.isNotEmpty()) latinRun.setLength(latinRun.length - 1)
         if (digits.isNotEmpty()) {
             digits.setLength(digits.length - 1)
             showAmount()
@@ -214,9 +237,11 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
      * a rule you wrote yourself, so confirming it every time would defeat it.
      * See [Shortcuts].
      *
-     * Nothing guards against this firing in a password field or on the English
-     * page, because nothing needs to: those pages route letters through
-     * onDirectText, so [composing] is empty and there is never a key to match.
+     * It fires on the English page too, which takes more work: there the
+     * letters were committed as they were typed, so they have to be deleted
+     * back out before the expansion can take their place. Password fields are
+     * excluded outright — a keyboard that rewrites what you type into a
+     * password box would be indefensible, however useful the rule.
      */
     private fun finishWord(separator: String) {
         val ic = currentInputConnection ?: return
@@ -226,7 +251,17 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
                 ?: Transliterator.best(typed, lexicon)
             ic.commitText(text, 1)
             composing.setLength(0)
+        } else if (separator.isNotEmpty() && !sensitiveField && latinRun.isNotEmpty()) {
+            val run = latinRun.toString()
+            Shortcuts.expansionFor(run)?.let {
+                ic.deleteSurroundingText(run.length, 0)
+                ic.commitText(it, 1)
+            }
         }
+        // Only a real separator ends the run. onDirectText calls this with an
+        // empty one on every keystroke, and clearing there would leave the run
+        // one letter long forever.
+        if (separator.isNotEmpty()) latinRun.setLength(0)
         if (separator.isNotEmpty()) ic.commitText(separator, 1)
         if (::suggestionBar.isInitialized) suggestionBar.clear()
     }

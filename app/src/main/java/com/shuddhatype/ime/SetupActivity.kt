@@ -6,12 +6,14 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -42,7 +44,34 @@ class SetupActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(buildLayout())
+        val root = buildLayout()
+        fitInsets(root)
+        setContentView(root)
+    }
+
+    /**
+     * Leave room for the status bar and the keyboard.
+     *
+     * targetSdk 35 makes Android 15 lay every window out edge to edge, and that
+     * turns `adjustResize` into a no-op — the keyboard is painted *over* the
+     * layout instead of shrinking it. That buried the shortcut fields and the
+     * थप्ने button under the keys, with nothing to scroll to. It is also why
+     * the title sat under the clock.
+     *
+     * So the insets are measured and turned into padding on the scrolling root.
+     * Below API 30 there is no `ime()` inset type, and `adjustResize` still
+     * does the job by itself.
+     */
+    private fun fitInsets(root: View) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars())
+            val ime = insets.getInsets(WindowInsets.Type.ime())
+            // The keyboard and the navigation bar occupy the same edge, so the
+            // larger of the two is the whole of what has to be cleared.
+            v.setPadding(0, bars.top, 0, maxOf(bars.bottom, ime.bottom))
+            insets
+        }
     }
 
     override fun onResume() {
