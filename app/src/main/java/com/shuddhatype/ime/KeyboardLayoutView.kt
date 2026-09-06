@@ -78,6 +78,8 @@ class KeyboardLayoutView(
 
     fun setSensitive(sensitive: Boolean) = keys.setSensitive(sensitive)
 
+    fun startLatin() = keys.startLatin()
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     companion object {
@@ -260,6 +262,27 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         // A password field must never be transliterated or learned from, so it
         // gets the plain Roman keyboard whatever the user last chose.
         if (value) { mode = 1; symbols = false }
+        actions.onModeChanged(isNepali())
+        requestLayout(); invalidate()
+    }
+
+    /**
+     * Open on the English page for a field that only accepts Latin.
+     *
+     * Without this, a shortcut key typed on the नेपाली page arrives as
+     * Devanagari — pp becomes प्प — and settings rejects it for containing no
+     * a-z. The user sees a refusal with no visible cause, having watched
+     * themselves type exactly what was asked for.
+     *
+     * Unlike [setSensitive] this is only a starting page, not a lock: the मोड
+     * key still works, because the field below it takes Nepali and the user
+     * moves between the two.
+     */
+    fun startLatin() {
+        if (sensitive) return
+        mode = 1
+        symbols = false
+        shifted = false
         actions.onModeChanged(isNepali())
         requestLayout(); invalidate()
     }

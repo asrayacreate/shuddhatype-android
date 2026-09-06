@@ -18,20 +18,22 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * Opened from the system keyboard list.
+ * Opened from the system keyboard list, and from step 4 of the setup screen —
+ * Android only offers it as a gear three screens deep, which is not where
+ * anyone looks.
  *
- * It states what the keyboard does with your typing — the question people
- * actually open keyboard settings to answer — and carries the settings worth
- * having: the theme, and the user's own shortcuts. Anything that changes daily
- * belongs on a key; anything changed once belongs here, where it costs no
- * keyboard width.
+ * It states what the keyboard does with your typing, and carries the settings
+ * worth having: the theme, and the user's own shortcuts.
  *
- * The tree is rebuilt with [recreate] after every change instead of being
- * patched in place. The screen is small and opened rarely, so the cost is
- * nothing, and a list that is always drawn from storage cannot drift out of
- * step with it.
+ * The tree is rebuilt with [recreate] after every change rather than patched in
+ * place, so the list is always drawn from storage and cannot drift out of step
+ * with it. The cost is that a half-typed shortcut would be thrown away by a
+ * theme tap; [draftKey] and [draftValue] carry it across.
  */
 class SettingsActivity : Activity() {
+
+    private lateinit var keyField: EditText
+    private lateinit var valueField: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +42,13 @@ class SettingsActivity : Activity() {
             setBackgroundColor(Theme.palette.screenBg)
             addView(buildLayout())
         })
+    }
+
+    /** Rebuild in the new palette without losing what is half-typed. */
+    private fun rebuild() {
+        draftKey = keyField.text.toString()
+        draftValue = valueField.text.toString()
+        recreate()
     }
 
     private fun buildLayout(): View = LinearLayout(this).apply {
@@ -125,9 +134,8 @@ class SettingsActivity : Activity() {
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
                 )
             })
-            // Deletes without asking: one row is one line of text the user
-            // typed themselves, and a confirmation dialog costs more than
-            // typing it again would.
+            // Deletes without asking: one row is one line the user typed
+            // themselves, and a confirmation costs more than retyping it would.
             addView(TextView(this@SettingsActivity).apply {
                 text = "मेट्ने"
                 gravity = Gravity.CENTER
@@ -137,6 +145,8 @@ class SettingsActivity : Activity() {
                 isClickable = true
                 setOnClickListener {
                     Shortcuts.remove(this@SettingsActivity, key)
+                    draftKey = ""
+                    draftValue = ""
                     recreate()
                 }
             })
@@ -149,35 +159,54 @@ class SettingsActivity : Activity() {
 
     private fun addRow(): View {
         val p = Theme.palette
-        val keyField = EditText(this).apply {
+
+        keyField = EditText(this).apply {
             hint = "pp"
-            setHintTextColor(p.screenMuted)
+            setHintTextColor(faded(p.screenMuted))
             setTextColor(p.screenText)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = Typeface.MONOSPACE
             // No autocorrect or capitals: this is a key, not prose, and a
-            // helpful capital P would quietly create a shortcut that never
-            // matches what the keyboard composes.
+            // helpful capital P would create a shortcut that never matches.
             inputType = InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            // Ask our own keyboard to open on the English page. Typed on the
+            // नेपाली page, pp arrives as प्प and is refused for containing no
+            // a-z — a rejection the user has no way to make sense of, having
+            // watched themselves type exactly what the hint asked for.
+            privateImeOptions = ShuddhaTypeService.LATIN_FIELD
             setSingleLine()
+            setText(draftKey)
         }
-        val valueField = EditText(this).apply {
+
+        valueField = EditText(this).apply {
             hint = "प्रेरक कन्स्ट्रक्सन एन्ड प्रिफ्याब होम्स प्रा. लि."
-            setHintTextColor(p.screenMuted)
+            setHintTextColor(faded(p.screenMuted))
             setTextColor(p.screenText)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             inputType = InputType.TYPE_CLASS_TEXT
             setSingleLine()
+            setText(draftValue)
         }
 
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(14), 0, 0)
+            setPadding(0, dp(16), 0, 0)
+
+            addView(LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                // Labels, because an example inside an empty field reads as
+                // something already typed. This is exactly what went wrong: the
+                // grey pp looked filled in, so "थप्ने" was pressed on an empty
+                // field and refused it for being too short.
+                addView(fieldLabel("छोटो अक्षर", dp(96)))
+                addView(fieldLabel("के लेख्ने", 0, 1f))
+            })
 
             addView(LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(keyField, LinearLayout.LayoutParams(
-                    dp(80), LinearLayout.LayoutParams.WRAP_CONTENT
+                    dp(96), LinearLayout.LayoutParams.WRAP_CONTENT
                 ))
                 addView(valueField, LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
@@ -197,10 +226,11 @@ class SettingsActivity : Activity() {
                     when {
                         bad != null -> toast(bad)
                         v.isEmpty() -> toast("के लेख्ने भन्ने खाली छ।")
-                        v.length > Shortcuts.MAX_VALUE ->
-                            toast("धेरै लामो भयो।")
+                        v.length > Shortcuts.MAX_VALUE -> toast("धेरै लामो भयो।")
                         else -> {
                             Shortcuts.put(this@SettingsActivity, k, v)
+                            draftKey = ""
+                            draftValue = ""
                             recreate()
                         }
                     }
@@ -208,10 +238,25 @@ class SettingsActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = dp(8) }
+                ).apply { topMargin = dp(10) }
             })
         }
     }
+
+    private fun fieldLabel(text: String, width: Int, weight: Float = 0f) =
+        TextView(this).apply {
+            this.text = text
+            setTextColor(Theme.palette.screenMuted)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(dp(2), 0, 0, dp(2))
+            layoutParams = LinearLayout.LayoutParams(
+                width, LinearLayout.LayoutParams.WRAP_CONTENT, weight
+            )
+        }
+
+    /** Muted enough that an example can never pass for typed text. */
+    private fun faded(color: Int) =
+        Color.argb(80, Color.red(color), Color.green(color), Color.blue(color))
 
     private fun toast(msg: String) =
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
@@ -240,9 +285,7 @@ class SettingsActivity : Activity() {
             isClickable = true
             setOnClickListener {
                 Theme.setMode(this@SettingsActivity, target)
-                // Cheaper than rebuilding the tree by hand, and it repaints the
-                // screen in the palette the user just picked.
-                recreate()
+                rebuild()
             }
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 .apply { marginEnd = dp(6) }
@@ -275,4 +318,14 @@ class SettingsActivity : Activity() {
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private companion object {
+        /**
+         * A half-typed shortcut, held across the [recreate] that a theme tap
+         * causes. Static rather than saved instance state because it only has
+         * to survive that one rebuild, inside one process.
+         */
+        var draftKey: String = ""
+        var draftValue: String = ""
+    }
 }

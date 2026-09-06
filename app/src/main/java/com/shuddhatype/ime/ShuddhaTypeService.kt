@@ -71,7 +71,24 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         Shortcuts.reload(this)
         sensitiveField = isSensitiveField(info)
         // onStartInput can run before onCreateInputView(); apply it then instead.
-        if (::keyboardView.isInitialized) keyboardView.setSensitive(sensitiveField)
+        if (::keyboardView.isInitialized) {
+            keyboardView.setSensitive(sensitiveField)
+            if (!sensitiveField && wantsLatin(info)) keyboardView.startLatin()
+        }
+    }
+
+    /**
+     * A field that can only hold Latin letters. Our own settings screen marks
+     * the shortcut key this way; email and URI fields ask for it by convention,
+     * and typing an address on the नेपाली page was never going to end well
+     * either.
+     */
+    private fun wantsLatin(info: EditorInfo?): Boolean {
+        if (info?.privateImeOptions?.contains(LATIN_FIELD) == true) return true
+        val variation = (info?.inputType ?: 0) and android.text.InputType.TYPE_MASK_VARIATION
+        return variation == android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+            variation == android.text.InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS ||
+            variation == android.text.InputType.TYPE_TEXT_VARIATION_URI
     }
 
     private fun isSensitiveField(info: EditorInfo?): Boolean {
@@ -287,9 +304,16 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         suggestionBar.show(words)
     }
 
-    private companion object {
+    companion object {
         /** The bar scrolls, so more than three is free screen space, not clutter. */
         const val SUGGESTION_LIMIT = 6
+
+        /**
+         * privateImeOptions marker asking the keyboard to open on the English
+         * page. Public because SettingsActivity sets it on the shortcut key
+         * field, and the two must agree on the string.
+         */
+        const val LATIN_FIELD = "com.shuddhatype.latin"
     }
 }
 
