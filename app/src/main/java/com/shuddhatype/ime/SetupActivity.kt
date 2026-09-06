@@ -126,20 +126,21 @@ class SetupActivity : Activity() {
         }
         root.addView(stepBlock("३", getString(R.string.setup_try), null, preview))
 
-        // Step 4 — the settings screen.
+        // Step 4 — the shortcut offer, asked outright.
         //
-        // Android only offers it as a gear buried in the system keyboard list,
-        // three screens deep, and people who want to add a shortcut do not find
-        // it. The app icon is where they look instead, so this is where it goes.
-        // Note the fully qualified name: android.provider.Settings is imported
-        // above for the system screens, and the bare name would resolve to that.
+        // This used to be a button labelled "शर्टकट थप्ने, रङ फेर्ने" leading to
+        // settings, and nobody ever pressed it. A label is not an offer: it
+        // names a feature to someone who has no idea they want it, on the one
+        // screen where they are busy getting the keyboard working at all.
+        //
+        // So the question is asked here instead, with the fields under it. The
+        // first shortcut gets made before the user ever leaves setup, and the
+        // feature is learned by using it rather than by reading about it.
         root.addView(stepBlock(
             "४",
-            "शर्टकट थप्ने, रङ फेर्ने",
+            "कम्पनीको नाम, ठेगाना — बारम्बार लेख्नुहुन्छ?",
             null,
-            actionButton("सेटिङ खोल्ने") {
-                startActivity(Intent(this, com.shuddhatype.ime.SettingsActivity::class.java))
-            }
+            shortcutOffer()
         ))
 
         root.addView(TextView(this).apply {
@@ -153,6 +154,119 @@ class SetupActivity : Activity() {
         return ScrollView(this).apply {
             setBackgroundColor(BG)
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+    }
+
+    /**
+     * The two fields, a button, and a line telling the user what they just
+     * bought — the shortcut written back at them as the thing they will type.
+     * Without that line the reward is invisible and the habit never forms.
+     *
+     * Settings stays reachable underneath for the theme and for editing later,
+     * but it is no longer the only way in.
+     */
+    private fun shortcutOffer(): View {
+        val status = TextView(this).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(MUTED)
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        val keyField = EditText(this).apply {
+            hint = "pp"
+            setHintTextColor(HINT)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            typeface = Typeface.MONOSPACE
+            setBackgroundColor(FIELD)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            // Our own keyboard opens on the English page here. On the नेपाली
+            // page pp arrives as प्प and would be refused for containing no a-z.
+            privateImeOptions = ShuddhaTypeService.LATIN_FIELD
+            setSingleLine()
+        }
+
+        val valueField = EditText(this).apply {
+            hint = "प्रेरक कन्स्ट्रक्सन एन्ड प्रिफ्याब होम्स प्रा. लि."
+            setHintTextColor(HINT)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setBackgroundColor(FIELD)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine()
+        }
+
+        fun showCount() {
+            val n = Shortcuts.all(this).size
+            status.text = if (n == 0) {
+                "छोटो अक्षर लेखेर स्पेस थिच्दा पूरा कुरा आउँछ। पछि पनि थप्न सकिन्छ।"
+            } else {
+                "$n वटा शर्टकट तयार छ। किबोर्डमा छोटो अक्षर लेखेर स्पेस थिच्नुहोस्।"
+            }
+        }
+        showCount()
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+
+            addView(TextView(this@SetupActivity).apply {
+                text = "छोटो अक्षर लेख्नुहोस् (जस्तै pp), अनि त्यसले के निकालोस् भन्ने।"
+                setTextColor(MUTED)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setPadding(0, 0, 0, dp(10))
+            })
+
+            addView(keyField, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            addView(valueField, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) })
+
+            val addButton = actionButton("शर्टकट थप्ने") {
+                val k = keyField.text.toString().trim()
+                val v = valueField.text.toString().trim()
+                val bad = Shortcuts.rejectReason(k)
+                when {
+                    bad != null -> status.text = bad
+                    v.isEmpty() -> status.text = "के लेख्ने भन्ने खाली छ।"
+                    v.length > Shortcuts.MAX_VALUE -> status.text = "धेरै लामो भयो।"
+                    else -> {
+                        Shortcuts.put(this@SetupActivity, k, v)
+                        keyField.setText("")
+                        valueField.setText("")
+                        // Named back at them, so the next step is obvious.
+                        status.text = "भयो — अब जहाँ पनि $k लेखेर स्पेस थिच्नुहोस्।"
+                    }
+                }
+            }
+            addView(addButton, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) })
+
+            addView(status)
+
+            addView(TextView(this@SetupActivity).apply {
+                text = "सेटिङ — रङ फेर्ने, शर्टकट मेट्ने"
+                setTextColor(ACCENT)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setPadding(0, dp(14), 0, dp(4))
+                isClickable = true
+                setOnClickListener {
+                    // Fully qualified: android.provider.Settings is imported for
+                    // the system screens above, and the bare name resolves to it.
+                    startActivity(Intent(
+                        this@SetupActivity,
+                        com.shuddhatype.ime.SettingsActivity::class.java
+                    ))
+                }
+            })
         }
     }
 
