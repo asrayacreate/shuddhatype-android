@@ -2,6 +2,10 @@ package com.shuddhatype.ime
 
 import android.app.Activity
 import com.shuddhatype.R
+import com.shuddhatype.engine.Preeti
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -100,6 +104,15 @@ class SettingsActivity : Activity() {
         ))
         addView(shortcutList())
         addView(addRow())
+
+        addView(heading("Preeti → युनिकोड"))
+        addView(body(
+            "पुराना Preeti फन्टका लेख युनिकोडमा बदल्नुहोस् — पुराना कागजात, " +
+            "पत्र, सूचना।\n\n" +
+            "Preeti फन्ट होइन, अक्षर नै हो भन्ने कुरा यहाँ काम लाग्छ: फन्ट " +
+            "नभएको कम्प्युटरमा जे देखिन्छ, त्यही यहाँ टाँस्नुहोस्।"
+        ))
+        addView(preetiBox())
 
         addView(heading("गोपनीयता"))
         addView(body(
@@ -224,6 +237,103 @@ class SettingsActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(6) }
+        }
+    }
+
+    /**
+     * Paste Preeti in, get Unicode out, copy it away.
+     *
+     * A screen rather than a keyboard key because the text almost never starts
+     * on the phone — it arrives from a document, an email, a twenty-year-old
+     * notice — so pasting is the natural move, and a key would cost keyboard
+     * width for something used once a week.
+     *
+     * The output is a field, not a label, so it can be corrected before it is
+     * copied. That matters: a Preeti file with English in it converts the
+     * English too — "Hello" was stored as the same bytes as ज्भििय and nothing
+     * in the text says which was meant. Nobody can fix that automatically.
+     */
+    private fun preetiBox(): View {
+        val p = Theme.palette
+
+        val input = EditText(this).apply {
+            hint = "Preeti लेख यहाँ टाँस्नुहोस्"
+            setHintTextColor(faded(p.screenMuted))
+            setTextColor(p.screenText)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            setSingleLine(false)
+            maxLines = 5
+        }
+        val output = EditText(this).apply {
+            hint = "बदलिएको लेख यहाँ आउँछ"
+            setHintTextColor(faded(p.screenMuted))
+            setTextColor(p.screenText)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setSingleLine(false)
+            maxLines = 6
+        }
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(12), 0, 0)
+            val wide = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            addView(input, wide)
+
+            addView(LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(8), 0, 0)
+
+                addView(Button(this@SettingsActivity).apply {
+                    text = "बदल्ने"
+                    isAllCaps = false
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(p.accent)
+                    setOnClickListener {
+                        val src = input.text.toString()
+                        when {
+                            src.isBlank() -> toast("पहिले Preeti लेख टाँस्नुहोस्।")
+                            !Preeti.looksLikePreeti(src) ->
+                                toast("यो Preeti लेख जस्तो देखिएन।")
+                            else -> output.setText(Preeti.toUnicode(src))
+                        }
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    ).apply { marginEnd = dp(6) }
+                })
+
+                addView(Button(this@SettingsActivity).apply {
+                    text = "कपी गर्ने"
+                    isAllCaps = false
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(p.keyMod)
+                    setOnClickListener {
+                        val out = output.text.toString()
+                        if (out.isBlank()) { toast("बदल्ने पहिले थिच्नुहोस्।"); return@setOnClickListener }
+                        val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cb.setPrimaryClip(ClipData.newPlainText("ShuddhaType", out))
+                        toast("कपी भयो।")
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    )
+                })
+            })
+
+            addView(output, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) })
         }
     }
 
