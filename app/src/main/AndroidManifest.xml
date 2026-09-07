@@ -42,6 +42,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Serves the rendered word-sticker to whichever app is being typed
+             into. commitContent hands over a URI, not a bitmap, so something
+             has to answer when the other app opens it.
+
+             exported, because the receiving app is a different process and has
+             to be able to read it — but it only ever serves one directory
+             inside this app's own cache, read-only, and grants are handed out
+             per-send by commitContent rather than standing open. -->
+        <provider
+            android:name="com.shuddhatype.ime.StickerProvider"
+            android:authorities="com.shuddhatype.stickers"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
         <activity
             android:name="com.shuddhatype.ime.SettingsActivity"
             android:exported="false"
