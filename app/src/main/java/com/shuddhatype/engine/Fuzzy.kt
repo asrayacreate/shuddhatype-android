@@ -191,8 +191,9 @@ class Fuzzy {
             "िी", "ुू", "इई", "उऊ",
             "सश", "सष", "शष",
             "बव", "नण", "ंँ", "ंङ",
-            "तथ", "दध", "डढ", "टठ",
-            "कख", "गघ", "जझ", "पफ", "बभ",
+            // Every aspirated pair. चछ was missed the first time round, which
+            // made पचि → पछि a whole mistake where कचि → कखि was half of one.
+            "कख", "गघ", "चछ", "जझ", "टठ", "डढ", "तथ", "दध", "पफ", "बभ",
             "ृि", "ेै", "ोौ"
         )
 

@@ -135,6 +135,15 @@ object English {
         "skin", "slow", "soft", "sort", "star",
         "tall", "term", "thin", "tire", "tool", "town",
         "tree", "trip", "true", "unit", "used", "user", "wide", "wind",
-        "wood", "yard", "young", "youth"
+        "wood", "yard", "young", "youth",
+
+        // Words this keyboard's own users type and the list did not have: the
+        // building trade, and the interface vocabulary that turns up in any
+        // message about a phone. Without them "shortcut" came out शोर्ट्चुत.
+        "shortcut", "profile", "confirm", "reply", "forward", "filter",
+        "export", "import", "warranty", "supervisor", "layout", "dimension",
+        "blueprint", "interior", "exterior", "ceiling", "flooring", "roofing",
+        "truss", "frame", "column", "concrete", "plywood", "granite",
+        "tiles", "primer", "putty"
     )
 }
