@@ -94,7 +94,9 @@ class SettingsActivity : Activity() {
             "छोटो अक्षर लेखेर लामो कुरा निकाल्नुहोस् — जस्तै pp लेखेर स्पेस थिच्दा " +
             "कम्पनीको नाम।\n\n" +
             "स्पेस थिच्नेबित्तिकै आफैँ फेरिन्छ। फेरिनुअघि माथिको सुझाव पट्टीमा " +
-            "के आउँदैछ देखिन्छ।"
+            "के आउँदैछ देखिन्छ।\n\n" +
+            "लामो सन्देश पनि राख्न सकिन्छ — WhatsApp मा पठाउने पूरा परिचय जस्तै। " +
+            "लाइन ब्रेक जस्ताको तस्तै रहन्छ।"
         ))
         addView(shortcutList())
         addView(addRow())
@@ -136,51 +138,104 @@ class SettingsActivity : Activity() {
         for ((key, value) in saved) addView(shortcutRow(key, value))
     }
 
+    /**
+     * One stored shortcut.
+     *
+     * A shortcut can now hold a whole WhatsApp introduction, so the row shows
+     * only the first line until it is tapped. Printing all of it would make a
+     * list of three shortcuts longer than the screen, and the thing you came to
+     * check — which key does what — would be the hardest part to find.
+     *
+     * Editing loads the pair back into the fields below rather than opening
+     * anything new: [Shortcuts.put] overwrites by key, so saving from there
+     * replaces the row. Fixing one letter of a five-hundred-character message
+     * used to mean deleting it and typing the whole thing again.
+     */
     private fun shortcutRow(key: String, value: String): View {
         val p = Theme.palette
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(p.keyMod)
-            setPadding(dp(12), dp(10), dp(6), dp(10))
+        val open = expanded.contains(key)
+        val lines = value.count { it == '\n' } + 1
+        val preview = when {
+            open -> value
+            value.length <= PREVIEW_CHARS && lines == 1 -> value
+            else -> value.take(PREVIEW_CHARS).substringBefore('\n').trimEnd() + " …"
+        }
 
-            addView(TextView(this@SettingsActivity).apply {
-                text = key
-                setTextColor(p.accent)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                typeface = Typeface.MONOSPACE
-                layoutParams = LinearLayout.LayoutParams(dp(64), LinearLayout.LayoutParams.WRAP_CONTENT)
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(p.keyMod)
+            setPadding(dp(12), dp(10), dp(10), dp(10))
+
+            addView(LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+
+                addView(TextView(this@SettingsActivity).apply {
+                    text = key
+                    setTextColor(p.accent)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    typeface = Typeface.MONOSPACE
+                    layoutParams = LinearLayout.LayoutParams(
+                        dp(64), LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                })
+                addView(TextView(this@SettingsActivity).apply {
+                    text = preview
+                    setTextColor(p.screenText)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    isClickable = true
+                    setOnClickListener {
+                        if (open) expanded.remove(key) else expanded.add(key)
+                        rebuild()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    )
+                })
             })
-            addView(TextView(this@SettingsActivity).apply {
-                text = value
-                setTextColor(p.screenText)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                layoutParams = LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-                )
-            })
-            // Deletes without asking: one row is one line the user typed
-            // themselves, and a confirmation costs more than retyping it would.
-            addView(TextView(this@SettingsActivity).apply {
-                text = "मेट्ने"
-                gravity = Gravity.CENTER
-                setTextColor(p.screenMuted)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                setPadding(dp(10), dp(6), dp(10), dp(6))
-                isClickable = true
-                setOnClickListener {
+
+            // Only offered when there is something hidden — a one-line shortcut
+            // has nothing to open, and the word would just be noise.
+            val hasMore = value.length > PREVIEW_CHARS || lines > 1
+
+            addView(LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(64), dp(6), 0, 0)
+                if (hasMore) addView(rowAction(if (open) "लुकाउने" else "पूरा हेर्ने") {
+                    if (open) expanded.remove(key) else expanded.add(key)
+                    rebuild()
+                })
+                addView(rowAction("सम्पादन") {
+                    keyField.setText(key)
+                    valueField.setText(value)
+                    valueField.requestFocus()
+                    toast("सच्याएर थप्ने थिच्नुहोस्।")
+                })
+                addView(rowAction("मेट्ने") {
                     Shortcuts.remove(this@SettingsActivity, key)
+                    expanded.remove(key)
                     draftKey = ""
                     draftValue = ""
                     recreate()
-                }
+                })
             })
+
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(6) }
         }
     }
+
+    private fun rowAction(label: String, onClick: () -> Unit) =
+        TextView(this).apply {
+            text = label
+            setTextColor(Theme.palette.screenMuted)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(0, dp(4), dp(18), dp(4))
+            isClickable = true
+            setOnClickListener { onClick() }
+        }
 
     private fun addRow(): View {
         val p = Theme.palette
@@ -209,8 +264,14 @@ class SettingsActivity : Activity() {
             setHintTextColor(faded(p.screenMuted))
             setTextColor(p.screenText)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            inputType = InputType.TYPE_CLASS_TEXT
-            setSingleLine()
+            // Multi-line: a shortcut can hold a whole message now, and the
+            // Enter key has to make a line break rather than close the field.
+            // Capped at six lines so a long one scrolls instead of pushing the
+            // थप्ने button off the screen.
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setSingleLine(false)
+            maxLines = 6
             setText(draftValue)
         }
 
@@ -251,7 +312,8 @@ class SettingsActivity : Activity() {
                     when {
                         bad != null -> toast(bad)
                         v.isEmpty() -> toast("के लेख्ने भन्ने खाली छ।")
-                        v.length > Shortcuts.MAX_VALUE -> toast("धेरै लामो भयो।")
+                        v.length > Shortcuts.MAX_VALUE ->
+                            toast("धेरै लामो भयो — ${Shortcuts.MAX_VALUE} अक्षरसम्म मात्र।")
                         else -> {
                             Shortcuts.put(this@SettingsActivity, k, v)
                             draftKey = ""
@@ -352,5 +414,15 @@ class SettingsActivity : Activity() {
          */
         var draftKey: String = ""
         var draftValue: String = ""
+
+        /**
+         * Which rows are showing their full text. Static for the same reason
+         * as the drafts: it only has to survive the [recreate] that a tap
+         * causes, inside one process.
+         */
+        val expanded = mutableSetOf<String>()
+
+        /** How much of a long shortcut the collapsed row shows. */
+        const val PREVIEW_CHARS = 42
     }
 }

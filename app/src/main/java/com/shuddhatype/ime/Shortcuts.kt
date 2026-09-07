@@ -26,8 +26,13 @@ object Shortcuts {
     /** Shortest key allowed. One letter would fire constantly by accident. */
     const val MIN_KEY = 2
 
-    /** Long enough for an address, short enough that the bar stays readable. */
-    const val MAX_VALUE = 200
+    /**
+     * Long enough for a whole WhatsApp introduction — the services list, the
+     * numbers, the sign-off. That is the message a contractor sends twenty
+     * times a day, and it is the reason to have shortcuts at all. 200 was
+     * enough for a company name and nothing else.
+     */
+    const val MAX_VALUE = 1000
 
     /** Insertion-ordered, so settings lists them the way they were added. */
     @Volatile
@@ -71,12 +76,9 @@ object Shortcuts {
         if (rejectReason(key) != null) return false
         val v = value.trim()
         if (v.isEmpty() || v.length > MAX_VALUE) return false
-        // Tabs and newlines are the record separators, so they cannot survive
-        // inside a value. Spaces are fine and common — addresses have them.
-        val clean = v.replace('\t', ' ').replace('\n', ' ')
 
         val map = LinkedHashMap(all(context))
-        map[key.trim().lowercase()] = clean
+        map[key.trim().lowercase()] = v
         write(context, map)
         return true
     }
@@ -91,7 +93,7 @@ object Shortcuts {
         val sb = StringBuilder()
         for ((k, v) in map) {
             if (sb.isNotEmpty()) sb.append(ROW)
-            sb.append(k).append(SEP).append(v)
+            sb.append(k).append(SEP).append(escape(v))
         }
         prefs(context).edit().putString(STORE, sb.toString()).apply()
         cache = LinkedHashMap(map)
@@ -103,9 +105,45 @@ object Shortcuts {
         for (line in raw.split(ROW)) {
             val i = line.indexOf(SEP)
             if (i <= 0 || i == line.length - 1) continue
-            map[line.substring(0, i)] = line.substring(i + 1)
+            map[line.substring(0, i)] = unescape(line.substring(i + 1))
         }
         return map
+    }
+
+    /**
+     * The store is one string with newline between records and tab between key
+     * and value, so a value containing either would split the file. They used
+     * to be replaced with spaces, which quietly flattened a formatted message
+     * into one paragraph — the layout of a services list is most of its point.
+     * Escaping keeps the text intact instead.
+     */
+    private fun escape(s: String) = s
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+
+    /**
+     * One pass, not three replaces. Unescaping in stages would turn a literal
+     * backslash-n that the user actually typed into a line break.
+     */
+    private fun unescape(s: String): String {
+        if (!s.contains('\\')) return s
+        val out = StringBuilder(s.length)
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                when (s[i + 1]) {
+                    'n' -> { out.append('\n'); i += 2 }
+                    't' -> { out.append('\t'); i += 2 }
+                    '\\' -> { out.append('\\'); i += 2 }
+                    else -> { out.append(c); i++ }
+                }
+            } else {
+                out.append(c); i++
+            }
+        }
+        return out.toString()
     }
 
     private fun prefs(context: Context) =

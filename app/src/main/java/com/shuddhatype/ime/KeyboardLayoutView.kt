@@ -163,45 +163,41 @@ private class KeyGrid(context: Context, private val actions: KeyboardActions) : 
         bottomRow()
     )
 
-    // Direct Devanagari, laid out in वर्णमाला order across two pages.
+    // Direct Devanagari across two pages.
     //
-    // Frequency ordering was tried first and abandoned. This page is for people
-    // who already type Devanagari, and every one of them learned the alphabet in
-    // school; with 33 consonants spread over two pages, knowing which page a
-    // letter is on matters far more than saving a few millimetres of thumb
-    // travel. क ख ग घ ङ in that order is findable without looking. A frequency
-    // shuffle is not.
+    // Layout rule, learned the hard way: **every key that existed before keeps
+    // the position it had.** An earlier version of this page added ृ and ् into
+    // the matra row, which pushed all nine matras one place along. The row was
+    // more complete and completely unusable — a thumb that knew where ो was hit
+    // ौ instead. Muscle memory is the whole value of a direct page, so the
+    // twenty-five characters that were missing had to go somewhere else.
     //
-    // Page one carries everything used in the middle of a word — the matras,
-    // the halant, and the first twenty consonants. Independent vowels sit on
-    // page two because they only ever occur word-initially, which is rare
-    // compared with a matra, which can occur in every syllable.
-    //
-    // Eleven keys on the top two rows rather than ten. It costs about 4dp of key
-    // width and is what makes ् and ं reachable without ⇧ — a halant behind a
-    // shift would be pressed on nearly every conjunct.
+    // Where they went: ⇧ turns over all three letter rows instead of one, which
+    // buys a second page; and five rare marks hang on long presses, each on a
+    // key of its own kind — ञ under ज, ः under ं, ऽ under ्, ॐ under ँ, ऋ under
+    // ृ. That is exactly enough room for all 63 characters with none of the old
+    // ones moved.
     private val devaRows = listOf(
         digits("१२३४५६७८९०", "1234567890"),
-        // ः on a hold of ्, ँ on a hold of ं: each pair is one class of mark, and
-        // the rarer of the two is the one that hides.
-        glyphs("ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्|ः"),
-        glyphs("क", "ख", "ग", "घ", "ङ", "च", "छ", "ज", "झ", "ञ", "ं|ँ"),
+        letters("ािीुूेैोौ"),
+        glyphs("क", "ख", "ग", "घ", "च", "छ", "ज|ञ", "झ", "ट", "ठ"),
         listOf(Key("⇧", "", Key.Kind.SHIFT, 1.5f)) +
-            letters("टठडढणतथदधन") +
+            glyphs("य", "र", "ल", "व", "स", "श", "ह", "ँ|ॐ", "ं|ः", "्|ऽ") +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f)),
         bottomRow()
     )
 
-    // Page two, reached with ⇧: the vowels and the rest of the alphabet.
+    // Page two, reached with ⇧.
     //
-    // The last row is deliberately short. क्ष, त्र and ज्ञ are two glyphs wide
-    // where every other key is one, so the extra width is not waste — it is the
-    // only way those three read as letters rather than as smudges.
+    // Row two is the old shift row, character for character and in the same
+    // place — ⇧ then that row is a movement a user already has. The other two
+    // rows are new: the vowels, the six consonants that were missing, and the
+    // three conjuncts the alphabet writes as single letters.
     private val devaShiftRows = listOf(
-        glyphs("अ", "आ", "इ", "ई", "उ", "ऊ", "ऋ", "ए", "ऐ", "ओ", "औ"),
-        glyphs("प", "फ", "ब", "भ", "म", "य", "र", "ल", "व", "श", "ष"),
+        glyphs("अ", "आ", "इ", "ई", "उ", "ऊ", "ए", "ऐ", "ओ"),
+        letters("डतथदधनपबभम"),
         listOf(Key("⇧", "", Key.Kind.SHIFT, 1.5f)) +
-            glyphs("स", "ह", "क्ष", "त्र", "ज्ञ", "ॐ", "ऽ") +
+            glyphs("औ", "ृ|ऋ", "ङ", "ढ", "ण", "फ", "ष", "क्ष", "त्र", "ज्ञ") +
             listOf(Key("⌫", "", Key.Kind.BACKSPACE, 1.5f))
     )
 

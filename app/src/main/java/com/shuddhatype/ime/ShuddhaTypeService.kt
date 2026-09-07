@@ -5,6 +5,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import com.shuddhatype.engine.Lexicon
 import com.shuddhatype.engine.NepaliDate
+import com.shuddhatype.engine.EnglishNumber
 import com.shuddhatype.engine.NepaliNumber
 import com.shuddhatype.engine.Transliterator
 import java.util.Calendar
@@ -303,9 +304,17 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
     }
 
     /**
-     * The amount, offered three ways: the words alone for prose, the full
-     * अक्षरेपी phrase for a quotation, and the figure regrouped in Devanagari.
-     * Nothing is shown for a single digit, which needs no help.
+     * The amount in words, offered five ways: Nepali plain and as the full
+     * अक्षरेपी phrase, the figure regrouped in Devanagari, then the same two in
+     * English. Nothing is shown for a single digit, which needs no help.
+     *
+     * English is there because half the paperwork in a Nepali office is —
+     * invoices to companies, cheques, contracts. It keeps लाख and करोड rather
+     * than converting to millions: an invoice reading "Five Lakh Forty Five
+     * Thousand" is the number everyone in the room is already holding.
+     *
+     * Nepali stays first because this is a Nepali keyboard; the bar scrolls, so
+     * the English pair costs nothing but a swipe to whoever does not want it.
      */
     private fun showAmount() {
         if (!::suggestionBar.isInitialized) return
@@ -313,10 +322,14 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         val words = if (raw.length >= 2) NepaliNumber.toWords(raw) else null
         if (words == null) { suggestionBar.clear(); return }
 
-        val out = ArrayList<String>(3)
+        val out = ArrayList<String>(5)
         out.add(words)
         out.add("$words रुपैयाँ मात्र")
         NepaliNumber.format(raw)?.let { out.add(it) }
+        EnglishNumber.toWords(raw)?.let {
+            out.add(it)
+            out.add("Rupees $it Only")
+        }
         suggestionBar.show(out)
     }
 
