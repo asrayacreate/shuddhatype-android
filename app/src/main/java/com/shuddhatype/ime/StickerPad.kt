@@ -13,13 +13,17 @@ import com.shuddhatype.engine.StickerMaker
 /**
  * The word-sticker tab.
  *
- * It reads what the user has just written rather than asking them to type it
- * again, because they have already written it — the phrase is sitting in the
- * message box above the keyboard. Tapping a design sends the picture; the
- * typed text stays where it is, so nothing is lost if they change their mind.
+ * Two ways in, and it always offers one of them:
  *
- * Previews are rendered small and on demand. Six 512² bitmaps held for a pad
- * that may never be opened is a lot of memory to spend on a maybe.
+ *   - **What you just wrote.** The phrase is already sitting in the message
+ *     box; asking the user to type it a second time would be absurd.
+ *   - **Ready greetings.** दशैं, तिहार, जन्मदिन — the messages everyone sends
+ *     anyway. Without these the tab opens empty on the day someone first finds
+ *     it, and an empty screen that asks you to do work first is a screen you
+ *     do not come back to.
+ *
+ * Previews are rendered small and on demand. Holding six 512² bitmaps for a
+ * pad that may never be opened is a lot of memory to spend on a maybe.
  */
 class StickerPad(
     context: Context,
@@ -28,17 +32,28 @@ class StickerPad(
 ) : LinearLayout(context) {
 
     private val prompt: TextView
+    private val chips: LinearLayout
     private val row: LinearLayout
+
     private var text: String = ""
+    private var emoji: String = ""
 
     init {
         orientation = VERTICAL
+
         prompt = TextView(context).apply {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(10), dp(12), dp(6))
+            setPadding(dp(12), dp(8), dp(12), dp(4))
         }
         addView(prompt, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+
+        // The greetings, as a scrolling strip of words above the designs.
+        chips = LinearLayout(context).apply { orientation = HORIZONTAL }
+        addView(HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(chips)
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         row = LinearLayout(context).apply { orientation = HORIZONTAL }
         addView(HorizontalScrollView(context).apply {
@@ -50,30 +65,66 @@ class StickerPad(
     fun applyTheme() {
         setBackgroundColor(Theme.palette.bg)
         prompt.setTextColor(Theme.palette.labelMod)
+        buildChips()
     }
 
     /** Re-read the field and redraw. Called every time the tab is opened. */
     fun refresh() {
-        text = source().trim()
-        row.removeAllViews()
+        val typed = source().trim()
+        // What the user wrote wins: they wrote it just now, on purpose.
+        if (typed.isNotEmpty()) select(typed, "") else select(StickerMaker.PHRASES[0])
+        buildChips()
+    }
 
-        if (text.isEmpty()) {
-            prompt.text = "पहिले केही लेख्नुहोस् — त्यही स्टिकर बन्छ।"
-            return
-        }
+    private fun select(phrase: StickerMaker.Phrase) = select(phrase.text, phrase.emoji)
+
+    private fun select(newText: String, newEmoji: String) {
+        text = newText
+        emoji = newEmoji
         prompt.text = "\"$text\" — डिजाइन छान्नुहोस्"
+        buildDesigns()
+    }
 
+    private fun buildChips() {
+        chips.removeAllViews()
+        val p = Theme.palette
+        val typed = source().trim()
+        if (typed.isNotEmpty()) chips.addView(chip("✍️ $typed", typed == text) { select(typed, "") })
+        for (ph in StickerMaker.PHRASES) {
+            chips.addView(chip("${ph.emoji} ${ph.text}", ph.text == text) { select(ph) })
+        }
+        chips.setBackgroundColor(p.bg)
+    }
+
+    private fun chip(label: String, chosen: Boolean, click: () -> Unit) =
+        TextView(context).apply {
+            text = label
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            val p = Theme.palette
+            setTextColor(if (chosen) p.accent else p.labelMod)
+            setBackgroundColor(if (chosen) p.key else p.keyMod)
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            isClickable = true
+            setOnClickListener { click() }
+            layoutParams = LinearLayout.LayoutParams(
+                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(6) }
+        }
+
+    private fun buildDesigns() {
+        row.removeAllViews()
+        if (text.isEmpty()) return
         for (i in 0 until StickerMaker.styleCount) {
-            val bmp = StickerMaker.render(text, i) ?: continue
+            val bmp = StickerMaker.render(text, i, emoji) ?: continue
             row.addView(ImageView(context).apply {
-                // Scaled for the strip; the full-size bitmap is made again on
-                // tap, so what gets sent is never the thumbnail.
-                setImageBitmap(Bitmap.createScaledBitmap(bmp, dp(96), dp(96), true))
+                // Scaled for the strip; the full-size bitmap is rendered again
+                // on tap, so what gets sent is never the thumbnail.
+                setImageBitmap(Bitmap.createScaledBitmap(bmp, dp(104), dp(104), true))
                 bmp.recycle()
-                setPadding(dp(6), dp(4), dp(6), dp(10))
+                setPadding(dp(6), dp(4), dp(6), dp(8))
                 isClickable = true
                 setOnClickListener {
-                    StickerMaker.render(text, i)?.let { full -> onPick(full, text) }
+                    StickerMaker.render(text, i, emoji)?.let { full -> onPick(full, text) }
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
