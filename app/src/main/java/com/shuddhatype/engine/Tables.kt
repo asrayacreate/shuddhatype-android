@@ -588,6 +588,32 @@ object Tables {
         "aunuhuncha" to "आउनुहुन्छ",
         "aunuhunchha" to "आउनुहुन्छ",
         "aeko" to "आएको",
-        "aayeko" to "आएको"
+        "aayeko" to "आएको",
+
+        // Greetings. These are what people reach for on a festival day, and
+        // every one of them was missing — badhai came out बढै, which is not a
+        // word. Both spellings of the छ sound are listed because people type
+        // each about equally.
+        "badhai" to "बधाई",
+        "badhaai" to "बधाई",
+        "subhakamana" to "शुभकामना",
+        "shubhakamana" to "शुभकामना",
+        "subhakaamana" to "शुभकामना",
+        "abhinandan" to "अभिनन्दन",
+        "swagatam" to "स्वागतम्",
+        "subha" to "शुभ",
+        "shubha" to "शुभ",
+        "bihe" to "बिहे",
+        "dashain" to "दशैं",
+        "tihar" to "तिहार",
+        "chad" to "चाड",
+        "parva" to "पर्व",
+        "utsav" to "उत्सव",
+        "janmadin" to "जन्मदिन",
+        "barsadin" to "बर्षदिन",
+        "safalata" to "सफलता",
+        "sukha" to "सुख",
+        "samriddhi" to "समृद्धि",
+        "sneha" to "स्नेह"
     )
 }
