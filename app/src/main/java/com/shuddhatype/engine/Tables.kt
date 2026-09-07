@@ -552,6 +552,42 @@ object Tables {
         "sat" to "सात",
         "aath" to "आठ",
         "nau" to "नौ",
-        "das" to "दश"
+        "das" to "दश",
+
+        // आउनु and its forms.
+        //
+        // `au` maps to औ, which is right for औषधि and wrong for everything
+        // here — and everything here is far commoner. The base rule cannot be
+        // changed without breaking the औ words, and no rule can decide between
+        // them from the letters alone, so the one Nepali actually writes every
+        // day is listed instead. Both spellings of the छ sound are given
+        // because people type each about equally.
+        "au" to "आउ|औ",
+        "aau" to "आउ",
+        "aunu" to "आउनु",
+        "aaunu" to "आउनु",
+        "aunuhos" to "आउनुहोस्",
+        "aaunuhos" to "आउनुहोस्",
+        "aucha" to "आउँछ",
+        "auchha" to "आउँछ",
+        "auncha" to "आउँछ",
+        "aunchha" to "आउँछ",
+        "aaunchha" to "आउँछ",
+        "auchu" to "आउँछु",
+        "aunchu" to "आउँछु",
+        "aunchhu" to "आउँछु",
+        "auchan" to "आउँछन्",
+        "aunchan" to "आउँछन्",
+        "aunchhan" to "आउँछन्",
+        "auchau" to "आउँछौ",
+        "aunchau" to "आउँछौ",
+        "auda" to "आउँदा",
+        "aunda" to "आउँदा",
+        "audaina" to "आउँदैन",
+        "aundaina" to "आउँदैन",
+        "aunuhuncha" to "आउनुहुन्छ",
+        "aunuhunchha" to "आउनुहुन्छ",
+        "aeko" to "आएको",
+        "aayeko" to "आएको"
     )
 }
