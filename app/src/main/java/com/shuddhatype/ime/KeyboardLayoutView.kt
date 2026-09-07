@@ -74,6 +74,7 @@ class KeyboardLayoutView(
     private fun showEmoji(show: Boolean) {
         keys.visibility = if (show) GONE else VISIBLE
         emojiPad.visibility = if (show) VISIBLE else GONE
+        if (show) emojiPad.onShown()
     }
 
     fun setSensitive(sensitive: Boolean) = keys.setSensitive(sensitive)
@@ -553,24 +554,46 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
 
     var onBack: (() -> Unit)? = null
 
+    private val tabRow: LinearLayout
+    private val tabs = ArrayList<TextView>(CATEGORIES.size + 1)
+    private val grid: LinearLayout
     private val bar: LinearLayout
     private val barLabels = ArrayList<TextView>(3)
 
+    /** Most recent first. Persisted, so it survives the keyboard being closed. */
+    private val recent = ArrayList<String>(RECENT_MAX)
+    private var current = 0
+
     init {
         orientation = VERTICAL
-        val scroll = ScrollView(context)
-        val grid = LinearLayout(context).apply { orientation = VERTICAL }
-        EMOJI.chunked(COLUMNS).forEach { rowChars ->
-            grid.addView(LinearLayout(context).apply {
-                orientation = HORIZONTAL
-                rowChars.forEach { e -> addView(cell(e)) }
-            })
-        }
-        scroll.addView(grid)
-        addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+        loadRecent()
+
+        tabRow = LinearLayout(context).apply { orientation = HORIZONTAL }
+        // The recents tab is first and always present, even when empty — a tab
+        // that appears only once you have used the pad is a tab nobody finds.
+        tabRow.addView(tab(RECENT_ICON, 0))
+        CATEGORIES.forEachIndexed { i, c -> tabRow.addView(tab(c.icon, i + 1)) }
+        addView(tabRow, LayoutParams(LayoutParams.MATCH_PARENT, dp(40)))
+
+        grid = LinearLayout(context).apply { orientation = VERTICAL }
+        addView(ScrollView(context).apply { addView(grid) },
+            LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+
         bar = bottomBar()
         addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, dp(46)))
+
+        show(if (recent.isEmpty()) 1 else 0)
         applyTheme()
+    }
+
+    /**
+     * Called each time the pad is opened. Recents are written by whichever
+     * keyboard instance is on screen, so they can change while this one is
+     * hidden; re-reading here is what keeps the tab honest.
+     */
+    fun onShown() {
+        loadRecent()
+        if (current == 0) show(0)
     }
 
     fun applyTheme() {
@@ -578,7 +601,80 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         setBackgroundColor(p.bg)
         bar.setBackgroundColor(p.keyMod)
         barLabels.forEach { it.setTextColor(p.labelMod) }
+        tabRow.setBackgroundColor(p.keyMod)
+        paintTabs()
     }
+
+    // ---- categories ----
+
+    private fun tab(icon: String, index: Int) = TextView(context).apply {
+        text = icon
+        gravity = Gravity.CENTER
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+        isClickable = true
+        setOnClickListener { show(index) }
+        layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
+        tabs.add(this)
+    }
+
+    private fun paintTabs() {
+        val p = Theme.palette
+        tabs.forEachIndexed { i, t ->
+            // The chosen tab gets the keyboard's own background, so it reads as
+            // continuous with the grid below it rather than as another button.
+            t.setBackgroundColor(if (i == current) p.bg else p.keyMod)
+        }
+    }
+
+    private fun show(index: Int) {
+        current = index
+        grid.removeAllViews()
+        val items = if (index == 0) recent else CATEGORIES[index - 1].emoji
+        if (items.isEmpty()) {
+            grid.addView(TextView(context).apply {
+                text = "पछिल्लो प्रयोग गरेका इमोजी यहाँ देखिनेछन्।"
+                setTextColor(Theme.palette.labelMod)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                gravity = Gravity.CENTER
+                setPadding(dp(16), dp(28), dp(16), dp(16))
+            })
+        } else {
+            items.chunked(COLUMNS).forEach { row ->
+                grid.addView(LinearLayout(context).apply {
+                    orientation = HORIZONTAL
+                    row.forEach { e -> addView(cell(e)) }
+                    // Pad the last row so its cells keep the others' width.
+                    repeat(COLUMNS - row.size) { addView(spacer()) }
+                })
+            }
+        }
+        paintTabs()
+    }
+
+    // ---- recents ----
+
+    private fun loadRecent() {
+        val raw = prefs().getString(RECENT_KEY, "") ?: ""
+        recent.clear()
+        if (raw.isNotEmpty()) recent.addAll(raw.split(SEP).filter { it.isNotEmpty() })
+    }
+
+    /**
+     * Newest first, no duplicates, capped at two rows. Two rows because the
+     * point of this tab is the handful of emoji someone actually reuses; a
+     * longer list is just the full pad again, in a worse order.
+     */
+    private fun remember(e: String) {
+        recent.remove(e)
+        recent.add(0, e)
+        while (recent.size > RECENT_MAX) recent.removeAt(recent.size - 1)
+        prefs().edit().putString(RECENT_KEY, recent.joinToString(SEP)).apply()
+        if (current == 0) show(0)
+    }
+
+    private fun prefs() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    // ---- cells ----
 
     private fun cell(e: String) = TextView(context).apply {
         text = e
@@ -586,8 +682,15 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
         setPadding(0, dp(8), 0, dp(8))
         isClickable = true
-        setOnClickListener { actions.onDirectText(e) }
+        setOnClickListener {
+            actions.onDirectText(e)
+            remember(e)
+        }
         layoutParams = LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+    }
+
+    private fun spacer() = View(context).apply {
+        layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
     }
 
     private fun bottomBar() = LinearLayout(context).apply {
@@ -610,31 +713,61 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
+    private class Category(val icon: String, val emoji: List<String>)
+
     companion object {
         private const val COLUMNS = 8
-        private val EMOJI = listOf(
-            "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣",
-            "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰",
-            "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜",
-            "🤪", "🤨", "🧐", "🤓", "😎", "🥳", "😏", "😒",
-            "😞", "😔", "😟", "😕", "🙁", "😣", "😖", "😫",
-            "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬",
-            "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥",
-            "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑",
-            "😬", "🙄", "😯", "😴", "🤤", "😪", "😵", "🤐",
-            "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "🤑",
-            "👍", "👎", "👌", "🤝", "🙏", "👏", "🙌", "💪",
-            "✌️", "🤞", "👋", "🤲", "☝️", "👉", "👈", "👆",
-            "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💔",
-            "💯", "🔥", "✨", "⭐", "🌟", "💫", "🎉", "🎊",
-            "🌸", "🌼", "🌹", "🌻", "🍀", "🌿", "🌳", "🌈",
-            "☀️", "🌙", "⛅", "🌧️", "❄️", "⚡", "💧", "🌊",
-            "🍎", "🍌", "🍇", "🍉", "🥭", "🍊", "🍓", "🥥",
-            "🍚", "🍛", "🍲", "🫓", "🥘", "🍜", "☕", "🍵",
-            "🏠", "🏫", "🏥", "🏔️", "🛕", "🚩", "🇳🇵", "🎂",
-            "🚗", "🏍️", "🚌", "✈️", "🚲", "⚽", "🏏", "🎵",
-            "📱", "💻", "📷", "📚", "✏️", "📝", "💰", "🎁",
-            "✅", "❌", "❓", "❗", "💤", "🔔", "🕉️", "🙋"
+        private const val RECENT_MAX = 16
+        private const val RECENT_ICON = "🕐"
+        private const val PREFS = "shuddhatype"
+        private const val RECENT_KEY = "recent_emoji"
+        private const val SEP = "\u0001"
+
+        /**
+         * Six groups, each labelled by one of its own emoji rather than a word.
+         * A picture tab needs no translation and costs no width — and the pad
+         * is used by people writing Nepali, English and Roman Nepali alike.
+         *
+         * The faces group is first and is where the pad opens on a fresh
+         * install, because it is what most people came for.
+         */
+        private val CATEGORIES = listOf(
+            Category("😀", listOf(
+                "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣",
+                "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰",
+                "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜",
+                "🤪", "🤨", "🧐", "🤓", "😎", "🥳", "😏", "😒",
+                "😞", "😔", "😟", "😕", "🙁", "😣", "😖", "😫",
+                "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬",
+                "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥",
+                "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑",
+                "😬", "🙄", "😯", "😴", "🤤", "😪", "😵", "🤐",
+                "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "🤑"
+            )),
+            Category("🙏", listOf(
+                "👍", "👎", "👌", "🤝", "🙏", "👏", "🙌", "💪",
+                "✌️", "🤞", "👋", "🤲", "☝️", "👉", "👈", "👆",
+                "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💔",
+                "💯", "🔥", "✨", "⭐", "🌟", "💫", "🎉", "🎊",
+                "🙋"
+            )),
+            Category("🌸", listOf(
+                "🌸", "🌼", "🌹", "🌻", "🍀", "🌿", "🌳", "🌈",
+                "☀️", "🌙", "⛅", "🌧️", "❄️", "⚡", "💧", "🌊"
+            )),
+            Category("🍎", listOf(
+                "🍎", "🍌", "🍇", "🍉", "🥭", "🍊", "🍓", "🥥",
+                "🍚", "🍛", "🍲", "🫓", "🥘", "🍜", "☕", "🍵",
+                "🎂"
+            )),
+            Category("🏠", listOf(
+                "🏠", "🏫", "🏥", "🏔️", "🛕", "🚩", "🇳🇵",
+                "🚗", "🏍️", "🚌", "✈️", "🚲", "⚽", "🏏", "🎵"
+            )),
+            Category("✅", listOf(
+                "✅", "❌", "❓", "❗", "💤", "🔔", "🕉️",
+                "📱", "💻", "📷", "📚", "✏️", "📝", "💰", "🎁"
+            ))
         )
     }
 }
