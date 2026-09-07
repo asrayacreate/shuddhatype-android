@@ -41,6 +41,10 @@ class KeyboardLayoutView(
     private val keys = KeyGrid(context, actions)
     private val emojiPad = EmojiPad(context, actions)
 
+    /** Set by the service; the sticker tab is inert until they are. */
+    var stickerSource: (() -> String)? = null
+    var onStickerPicked: ((android.graphics.Bitmap, String) -> String?)? = null
+
     init {
         orientation = VERTICAL
         addView(suggestions, LayoutParams(LayoutParams.MATCH_PARENT, dp(SuggestionBar.HEIGHT_DP)))
@@ -49,6 +53,8 @@ class KeyboardLayoutView(
         emojiPad.visibility = GONE
         keys.onEmojiRequest = { showEmoji(true) }
         emojiPad.onBack = { showEmoji(false) }
+        emojiPad.stickerSource = { stickerSource?.invoke() ?: "" }
+        emojiPad.onStickerPicked = { b, t -> onStickerPicked?.invoke(b, t) }
         applyTheme()
     }
 
@@ -553,8 +559,13 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
     LinearLayout(context) {
 
     var onBack: (() -> Unit)? = null
+    var stickerSource: (() -> String)? = null
+    var onStickerPicked: ((android.graphics.Bitmap, String) -> String?)? = null
 
+    private val stickerPad: StickerPad
+    private val toast: TextView
     private val tabRow: LinearLayout
+    private val scroller: ScrollView
     private val tabs = ArrayList<TextView>(CATEGORIES.size + 1)
     private val grid: LinearLayout
     private val bar: LinearLayout
@@ -573,11 +584,34 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         // that appears only once you have used the pad is a tab nobody finds.
         tabRow.addView(tab(RECENT_ICON, 0))
         CATEGORIES.forEachIndexed { i, c -> tabRow.addView(tab(c.icon, i + 1)) }
+        // Word stickers live at the end, where a new thing can be found without
+        // displacing the emoji anyone came for.
+        tabRow.addView(tab(STICKER_ICON, STICKER_TAB))
         addView(tabRow, LayoutParams(LayoutParams.MATCH_PARENT, dp(40)))
 
+        scroller = ScrollView(context)
         grid = LinearLayout(context).apply { orientation = VERTICAL }
-        addView(ScrollView(context).apply { addView(grid) },
-            LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+        scroller.addView(grid)
+        addView(scroller, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+
+        stickerPad = StickerPad(
+            context,
+            source = { stickerSource?.invoke() ?: "" },
+            onPick = { bmp, label ->
+                val problem = onStickerPicked?.invoke(bmp, label)
+                if (problem != null) flash(problem)
+            }
+        )
+        stickerPad.visibility = GONE
+        addView(stickerPad, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+
+        toast = TextView(context).apply {
+            gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            visibility = GONE
+        }
+        addView(toast, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         bar = bottomBar()
         addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, dp(46)))
@@ -593,7 +627,7 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
      */
     fun onShown() {
         loadRecent()
-        if (current == 0) show(0)
+        if (current == 0 || current == STICKER_TAB) show(current)
     }
 
     fun applyTheme() {
@@ -602,8 +636,25 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         bar.setBackgroundColor(p.keyMod)
         barLabels.forEach { it.setTextColor(p.labelMod) }
         tabRow.setBackgroundColor(p.keyMod)
+        toast.setBackgroundColor(p.keyMod)
+        toast.setTextColor(p.labelMod)
+        stickerPad.applyTheme()
         paintTabs()
     }
+
+    /**
+     * A keyboard has no Toast of its own worth using — a system toast from an
+     * IME lands behind the keyboard on some phones. A strip inside the pad is
+     * where the user is already looking.
+     */
+    private fun flash(message: String) {
+        toast.text = message
+        toast.visibility = VISIBLE
+        toast.removeCallbacks(hideToast)
+        toast.postDelayed(hideToast, 2600)
+    }
+
+    private val hideToast = Runnable { toast.visibility = GONE }
 
     // ---- categories ----
 
@@ -628,6 +679,15 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
 
     private fun show(index: Int) {
         current = index
+        val sticker = index == STICKER_TAB
+        scroller.visibility = if (sticker) GONE else VISIBLE
+        stickerPad.visibility = if (sticker) VISIBLE else GONE
+        if (sticker) {
+            stickerPad.applyTheme()
+            stickerPad.refresh()
+            paintTabs()
+            return
+        }
         grid.removeAllViews()
         val items = if (index == 0) recent else CATEGORIES[index - 1].emoji
         if (items.isEmpty()) {
@@ -719,6 +779,10 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         private const val COLUMNS = 8
         private const val RECENT_MAX = 16
         private const val RECENT_ICON = "🕐"
+        private const val STICKER_ICON = "✍️"
+
+        /** After the six emoji groups and the recents tab. */
+        private const val STICKER_TAB = 7
         private const val PREFS = "shuddhatype"
         private const val RECENT_KEY = "recent_emoji"
         private const val SEP = "\u0001"

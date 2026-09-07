@@ -2,7 +2,15 @@ package com.shuddhatype.ime
 
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.content.ClipDescription
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputContentInfo
+import java.io.File
+import java.io.FileOutputStream
 import com.shuddhatype.engine.Lexicon
 import com.shuddhatype.engine.NepaliDate
 import com.shuddhatype.engine.EnglishNumber
@@ -71,6 +79,10 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         suggestionBar = SuggestionBar(this).apply { onPick = ::commitChoice }
         keyboardView = KeyboardLayoutView(this, actions = this, suggestions = suggestionBar)
         keyboardView.setSensitive(sensitiveField)
+        // The pad has no way to reach the field on its own; these are its only
+        // route in and out.
+        keyboardView.stickerSource = ::stickerSource
+        keyboardView.onStickerPicked = ::sendSticker
         return keyboardView
     }
 
@@ -352,6 +364,72 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         suggestionBar.show(words)
     }
 
+    // ---- word stickers ----
+
+    /**
+     * What the sticker pad turns into a picture: the text already sitting in
+     * the field, so nobody has to type their phrase twice.
+     *
+     * Only the current line, and never from a password box. A keyboard that
+     * reads a whole document to make a picture is not a keyboard anyone should
+     * install.
+     */
+    fun stickerSource(): String {
+        if (sensitiveField) return ""
+        val ic = currentInputConnection ?: return ""
+        val before = ic.getTextBeforeCursor(STICKER_MAX_CHARS, 0)?.toString() ?: ""
+        val after = ic.getTextAfterCursor(STICKER_MAX_CHARS, 0)?.toString() ?: ""
+        return (before + after).substringAfterLast('\n').trim()
+    }
+
+    /**
+     * Write the bitmap where [StickerProvider] can serve it, then hand the URI
+     * over. Returns a message when it cannot, because silence on a tap reads
+     * as a broken button.
+     *
+     * `commitContent` needs API 25, and the receiving app has to have said it
+     * takes PNGs. Plenty do not — a notes app or an SMS field will refuse, and
+     * saying so plainly is better than appearing to do nothing.
+     */
+    fun sendSticker(bitmap: Bitmap, label: String): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) {
+            return "यो फोनमा स्टिकर पठाउन मिल्दैन।"
+        }
+        val ic = currentInputConnection ?: return "अहिले पठाउन मिलेन।"
+        val info = currentInputEditorInfo ?: return "अहिले पठाउन मिलेन।"
+        if (!acceptsPng(info)) return "यो एपले तस्बिर लिँदैन। WhatsApp मा चलाउनुहोस्।"
+
+        val uri = try { writeSticker(bitmap) } catch (e: Exception) { null }
+            ?: return "स्टिकर बनाउन सकिएन।"
+
+        val content = InputContentInfo(
+            uri, ClipDescription(label, arrayOf(MIME_PNG)), null
+        )
+        val flags = InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION
+        return if (ic.commitContent(content, flags, null)) null
+        else "यो एपले तस्बिर लिँदैन। WhatsApp मा चलाउनुहोस्।"
+    }
+
+    private fun acceptsPng(info: EditorInfo): Boolean {
+        val types = info.contentMimeTypes ?: return false
+        return types.any { ClipDescription.compareMimeTypes(it, MIME_PNG) }
+    }
+
+    /**
+     * One file, overwritten each time. The picture is gone the moment the chat
+     * app has copied it, and a folder of every sticker anyone ever sent is a
+     * privacy problem waiting to be found.
+     */
+    private fun writeSticker(bitmap: Bitmap): Uri {
+        val dir = StickerProvider.dir(this)
+        dir.listFiles()?.forEach { it.delete() }
+        val file = File(dir, STICKER_FILE)
+        FileOutputStream(file).use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        return StickerProvider.uriFor(STICKER_FILE)
+    }
+
     companion object {
         /** The bar scrolls, so more than three is free screen space, not clutter. */
         const val SUGGESTION_LIMIT = 6
@@ -362,6 +440,12 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
          * field, and the two must agree on the string.
          */
         const val LATIN_FIELD = "com.shuddhatype.latin"
+
+        private const val MIME_PNG = "image/png"
+        private const val STICKER_FILE = "sticker.png"
+
+        /** A sticker is a phrase, not an essay. */
+        private const val STICKER_MAX_CHARS = 120
     }
 }
 
