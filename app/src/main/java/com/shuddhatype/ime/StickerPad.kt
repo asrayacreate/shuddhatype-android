@@ -22,10 +22,9 @@ import com.shuddhatype.engine.StickerMaker
  *     it, and an empty screen that asks you to do work first is a screen you
  *     do not come back to.
  *
- * Both paths get their emoji and their design from the words themselves, via
- * [StickerMaker.emojiFor] and [StickerMaker.styleOrder]. Typed words used to
- * get neither, and came out as flat colour beside ready phrases that each had
- * a picture.
+ * Both paths get their symbol and their design from the words themselves —
+ * the pad passes only the text, and [StickerMaker] decides what is drawn on
+ * it. The emoji kept here is the label on the chip, nothing more.
  *
  * Previews are rendered small and on demand. Holding six 512² bitmaps for a
  * pad that may never be opened is a lot of memory to spend on a maybe.
@@ -135,7 +134,7 @@ class StickerPad(
         // Suited design first; the rest still follow, because a colour is a
         // taste and the user's taste beats the table's.
         for (i in StickerMaker.styleOrder(text)) {
-            val bmp = StickerMaker.render(text, i, emoji) ?: continue
+            val bmp = StickerMaker.render(text, i) ?: continue
             row.addView(ImageView(context).apply {
                 // Scaled for the strip; the full-size bitmap is rendered again
                 // on tap, so what gets sent is never the thumbnail.
@@ -144,7 +143,7 @@ class StickerPad(
                 setPadding(dp(6), dp(4), dp(6), dp(8))
                 isClickable = true
                 setOnClickListener {
-                    StickerMaker.render(text, i, emoji)?.let { full -> onPick(full, text) }
+                    StickerMaker.render(text, i)?.let { full -> onPick(full, text) }
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
