@@ -100,7 +100,7 @@ object StickerMaker {
             to Look("✨", 5, M_BURST, D_BUNTING),
         listOf("विवाह", "बिवाह", "बिहे", "vivah", "bibah", "wedding", "marriage")
             to Look("💍", 7, M_GANTHO, D_GARLAND),
-        listOf("श्रद्धाञ्जली", "श्रद्धान्जली", "शोक", "दुःखद", "निधन", "shraddhanjali")
+        listOf("श्रद्धाञ्जली", "श्रद्धान्जली", "श्रद्धाञ्जलि", "शोक", "दुःखद", "निधन", "shraddhanjali")
             to Look("🕯️", 2, M_CANDLE, D_NONE, quiet = true),
         listOf("बधाई", "badhai", "congrat")
             to Look("🎊", 0, M_BURST, D_BUNTING),
@@ -114,7 +114,7 @@ object StickerMaker {
             to Look("🌸", 3, M_FLOWER, D_CORNERS),
         listOf("प्रभात", "बिहानी", "good morning", "shubha prabhat")
             to Look("☀️", 3, M_SUN, D_RAYS),
-        listOf("रात्री", "राति", "good night", "shubha ratri")
+        listOf("रात्री", "रात्रि", "राति", "good night", "shubha ratri", "subha ratri")
             to Look("🌙", 6, M_MOON, D_NIGHT),
         listOf("माया", "प्रेम", "वार्षिकोत्सव", "love", "anniversary")
             to Look("❤️", 0, M_HEART, D_CORNERS),
@@ -126,12 +126,41 @@ object StickerMaker {
             to Look("🌟", 5, M_STAR, D_RAYS)
     )
 
+    /**
+     * Matching ignores the three differences a Roman typist never controls:
+     * ी/ि, ू/ु and ँ/ं. `shubha ratri` comes out रात्रि where the table said
+     * रात्री, so शुभ रात्री fell through to the generic star and lost its moon,
+     * its night sky and its Himalaya — a whole design gone to one मात्रा. The
+     * keys are folded the same way, once, below.
+     */
+    private fun fold(s: String): String {
+        val b = StringBuilder(s.length)
+        for (ch in s.lowercase()) {
+            b.append(
+                when (ch) {
+                    'ी' -> 'ि'
+                    'ू' -> 'ु'
+                    'ँ' -> 'ं'
+                    else -> ch
+                }
+            )
+        }
+        return b.toString()
+    }
+
+    /**
+     * [LOOKS] with every key folded. Declared here, above [PHRASES], because
+     * the ready phrases look themselves up while the object is being built.
+     */
+    private val FOLDED: List<Pair<List<String>, Look>> =
+        LOOKS.map { (keys, look) -> keys.map { fold(it) } to look }
+
     /** Past this length the words are a message, and they need the whole square. */
     private const val MOTIF_MAX_CHARS = 40
 
     private fun lookFor(text: String): Look? {
-        val t = text.lowercase()
-        for ((keys, look) in LOOKS) if (keys.any { t.contains(it) }) return look
+        val t = fold(text)
+        for ((keys, look) in FOLDED) if (keys.any { t.contains(it) }) return look
         return null
     }
 
