@@ -59,6 +59,7 @@ object StickerMaker {
     private const val M_HEART = 11      // माया
     private const val M_FLOWER = 12     // स्वागत — सयपत्री
     private const val M_SPARK = 13      // anything else
+    private const val M_SLEEPER = 14    // शुभ रात्रि
 
     // ---- background decoration ----
 
@@ -115,7 +116,7 @@ object StickerMaker {
         listOf("प्रभात", "बिहानी", "good morning", "shubha prabhat")
             to Look("☀️", 3, M_SUN, D_RAYS),
         listOf("रात्री", "रात्रि", "राति", "good night", "shubha ratri", "subha ratri")
-            to Look("🌙", 6, M_MOON, D_NIGHT),
+            to Look("🌙", 6, M_SLEEPER, D_NIGHT),
         listOf("माया", "प्रेम", "वार्षिकोत्सव", "love", "anniversary")
             to Look("❤️", 0, M_HEART, D_CORNERS),
         listOf("माफ", "माफी", "क्षमा", "sorry")
@@ -268,6 +269,7 @@ object StickerMaker {
         this.style = Paint.Style.STROKE
         this.strokeWidth = width
         this.strokeCap = Paint.Cap.ROUND
+        this.strokeJoin = Paint.Join.ROUND
     }
 
     private fun oval(c: Canvas, cx: Float, cy: Float, rx: Float, ry: Float, color: Int) =
@@ -282,6 +284,16 @@ object StickerMaker {
         }
         p.close()
         c.drawPath(p, fill(color))
+    }
+
+    private fun polyline(c: Canvas, p: Paint, vararg pts: Float) {
+        val path = Path()
+        path.moveTo(pts[0], pts[1])
+        var i = 2
+        while (i < pts.size) {
+            path.lineTo(pts[i], pts[i + 1]); i += 2
+        }
+        c.drawPath(path, p)
     }
 
     /**
@@ -493,6 +505,7 @@ object StickerMaker {
             M_HEART -> heart(c, cx, cy, r, s)
             M_FLOWER -> flower(c, cx, cy, r)
             M_SPARK -> spark(c, cx, cy, r, s)
+            M_SLEEPER -> sleeper(c, cx, cy, r, s)
         }
     }
 
@@ -759,6 +772,97 @@ object StickerMaker {
                 x + rr, y, x + rr * 0.26f, y + rr * 0.26f,
                 x, y + rr, x - rr * 0.26f, y + rr * 0.26f,
                 x - rr, y, x - rr * 0.26f, y - rr * 0.26f
+            )
+        }
+    }
+
+    /**
+     * शुभ रात्रि — someone asleep with their head on their arm, under the moon.
+     * A moon alone said "night"; a person asleep says "sleep well", which is
+     * what the words underneath actually mean.
+     */
+    private fun sleeper(c: Canvas, cx: Float, cy: Float, r: Float, s: Style) {
+        // Moon, up and to the right, where it stays clear of the sleeper.
+        val mx = cx + r * 1.02f
+        val my = cy - r * 0.74f
+        val mr = r * 0.62f
+        glow(c, mx, my, mr * 2.6f, 0x78FFF0BE.toInt())
+        c.drawCircle(mx, my, mr, fill(0xFFFFF4D0.toInt()))
+        val craters = arrayOf(
+            Triple(-0.34f, -0.22f, 0.20f), Triple(0.30f, 0.16f, 0.15f),
+            Triple(-0.06f, 0.42f, 0.11f)
+        )
+        for ((fx, fy, fr) in craters) {
+            c.drawCircle(mx + mr * fx, my + mr * fy, mr * fr, fill(0xFFEEE0B8.toInt()))
+        }
+
+        val skin = 0xFFFFE0BD.toInt()
+        val hair = 0xFF342824.toInt()
+
+        c.drawRoundRect(
+            RectF(cx - r * 1.72f, cy + r * 0.30f, cx - r * 0.52f, cy + r * 0.92f),
+            r * 0.26f, r * 0.26f, fill(0xFFEAF0FF.toInt())
+        )
+        // the arm tucked under the head
+        c.drawRoundRect(
+            RectF(cx - r * 1.40f, cy + r * 0.06f, cx - r * 0.30f, cy + r * 0.42f),
+            r * 0.18f, r * 0.18f, fill(skin)
+        )
+
+        val hx = cx - r * 0.96f
+        val hy = cy + r * 0.02f
+        val hr = r * 0.42f
+        c.drawCircle(hx, hy, hr, fill(skin))
+        // hair over the top and back only, so the face stays a face
+        c.drawArc(
+            RectF(hx - hr * 1.06f, hy - hr * 1.06f, hx + hr * 1.06f, hy + hr * 1.06f),
+            178f, 174f, true, fill(hair)
+        )
+        oval(c, hx - hr * 0.72f, hy + hr * 0.10f, hr * 0.38f, hr * 0.52f, hair)
+        c.drawArc(
+            RectF(hx - hr * 0.18f, hy - hr * 0.12f, hx + hr * 0.52f, hy + hr * 0.36f),
+            200f, 140f, false, stroke(hair, r * 0.07f)
+        )
+        c.drawArc(
+            RectF(hx + hr * 0.06f, hy + hr * 0.36f, hx + hr * 0.46f, hy + hr * 0.68f),
+            200f, 140f, false, stroke(0xFFC48474.toInt(), r * 0.05f)
+        )
+
+        // the body under a quilt - one long low hill
+        val quilt = Path()
+        quilt.moveTo(cx - r * 0.62f, cy + r * 0.98f)
+        for (i in 0..28) {
+            val t = i / 28.0
+            val x = cx - r * 0.62f + (t * r * 2.46).toFloat()
+            val y = cy + r * 0.98f - (sin(Math.PI * minOf(1.0, t * 1.12)) * r * 0.74).toFloat()
+            quilt.lineTo(x, y)
+        }
+        quilt.lineTo(cx + r * 1.84f, cy + r * 0.98f)
+        quilt.close()
+        c.drawPath(quilt, fill(s.ink))
+
+        // a fold across the quilt
+        val fold = Path()
+        for (i in 0..20) {
+            val t = i / 20.0
+            val x = cx - r * 0.10f + (t * r * 1.70).toFloat()
+            val y = cy + r * 0.62f - (sin(Math.PI * t) * r * 0.12).toFloat()
+            if (i == 0) fold.moveTo(x, y) else fold.lineTo(x, y)
+        }
+        c.drawPath(fold, stroke(s.ink2, r * 0.10f))
+
+        // zzz drifting up on the free side, spaced so they stay readable
+        val zs = arrayOf(
+            Triple(cx - r * 0.42f, cy - r * 0.62f, 0.30f),
+            Triple(cx - r * 0.02f, cy - r * 1.06f, 0.22f),
+            Triple(cx + r * 0.30f, cy - r * 1.40f, 0.15f)
+        )
+        for ((zx, zy, sc) in zs) {
+            val w = r * sc
+            val h = r * sc * 1.15f
+            polyline(
+                c, stroke(0xF0E6EEFF.toInt(), r * sc * 0.34f),
+                zx - w, zy - h, zx + w, zy - h, zx - w, zy + h, zx + w, zy + h
             )
         }
     }
