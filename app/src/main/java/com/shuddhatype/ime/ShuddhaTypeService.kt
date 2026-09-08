@@ -16,6 +16,7 @@ import com.shuddhatype.engine.NepaliDate
 import com.shuddhatype.engine.EnglishNumber
 import com.shuddhatype.engine.NepaliNumber
 import com.shuddhatype.engine.Respect
+import com.shuddhatype.engine.Templates
 import com.shuddhatype.engine.Transliterator
 import java.util.Calendar
 import kotlin.concurrent.thread
@@ -89,6 +90,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
 
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
+        pendingInserts = emptyMap()
         composing.setLength(0)
         digits.setLength(0)
         latinRun.setLength(0)
@@ -216,6 +218,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
      */
     override fun onDate() {
         if (!::suggestionBar.isInitialized) return
+        pendingInserts = emptyMap()
         digits.setLength(0)
         finishWord(separator = "")
 
@@ -287,8 +290,39 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
      * digits are already committed and staying — a quotation wants the figure
      * and the words side by side — so the choice is appended instead.
      */
+    /**
+     * Labels in the suggestion bar that must insert something other than
+     * themselves. Only the ढाँचा key fills this: the bar shows "निवेदन" and
+     * the field gets the whole letter.
+     *
+     * Cleared everywhere the bar is refilled from another source, because
+     * निवेदन is also an ordinary word somebody might simply type.
+     */
+    private var pendingInserts: Map<String, String> = emptyMap()
+
+    /**
+     * The ढाँचा key offers the five letters by name; picking one writes it
+     * into the field whole. Nothing is committed by pressing the key itself —
+     * same as मिति, and for the same reason: which letter is not guessable.
+     */
+    override fun onTemplate() {
+        if (!::suggestionBar.isInitialized) return
+        digits.setLength(0)
+        finishWord(separator = "")
+        pendingInserts = Templates.ALL.associate { it.name to it.body }
+        suggestionBar.show(Templates.ALL.map { it.name })
+    }
+
     private fun commitChoice(word: String) {
         val ic = currentInputConnection ?: return
+        pendingInserts[word]?.let { body ->
+            pendingInserts = emptyMap()
+            ic.commitText(body, 1)
+            composing.setLength(0)
+            digits.setLength(0)
+            if (::suggestionBar.isInitialized) suggestionBar.clear()
+            return
+        }
         if (digits.isNotEmpty()) {
             ic.commitText(" $word ", 1)
             digits.setLength(0)
@@ -331,6 +365,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
      */
     private fun showAmount() {
         if (!::suggestionBar.isInitialized) return
+        pendingInserts = emptyMap()
         val raw = digits.toString()
         val words = if (raw.length >= 2) NepaliNumber.toWords(raw) else null
         if (words == null) { suggestionBar.clear(); return }
@@ -348,6 +383,7 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
 
     private fun refreshSuggestions() {
         if (!::suggestionBar.isInitialized) return
+        pendingInserts = emptyMap()
         if (composing.isEmpty()) { suggestionBar.clear(); return }
         val roman = composing.toString()
         val words = ArrayList<String>(SUGGESTION_LIMIT + 2)
@@ -469,4 +505,5 @@ interface KeyboardActions {
     fun onEnter()
     fun onPunctuation(text: String)
     fun onDate()
+    fun onTemplate()
 }
