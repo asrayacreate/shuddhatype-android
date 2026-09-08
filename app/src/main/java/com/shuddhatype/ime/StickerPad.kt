@@ -22,6 +22,11 @@ import com.shuddhatype.engine.StickerMaker
  *     it, and an empty screen that asks you to do work first is a screen you
  *     do not come back to.
  *
+ * Both paths get their emoji and their design from the words themselves, via
+ * [StickerMaker.emojiFor] and [StickerMaker.styleOrder]. Typed words used to
+ * get neither, and came out as flat colour beside ready phrases that each had
+ * a picture.
+ *
  * Previews are rendered small and on demand. Holding six 512² bitmaps for a
  * pad that may never be opened is a lot of memory to spend on a maybe.
  */
@@ -72,16 +77,18 @@ class StickerPad(
     fun refresh() {
         val typed = source().trim()
         // What the user wrote wins: they wrote it just now, on purpose.
-        if (typed.isNotEmpty()) select(typed, "") else select(StickerMaker.PHRASES[0])
+        if (typed.isNotEmpty()) selectTyped(typed) else select(StickerMaker.PHRASES[0])
         buildChips()
     }
+
+    private fun selectTyped(typed: String) = select(typed, StickerMaker.emojiFor(typed))
 
     private fun select(phrase: StickerMaker.Phrase) = select(phrase.text, phrase.emoji)
 
     private fun select(newText: String, newEmoji: String) {
         text = newText
         emoji = newEmoji
-        prompt.text = "\"$text\" — डिजाइन छान्नुहोस्"
+        prompt.text = "\"${short(text, 34)}\" — डिजाइन छान्नुहोस्"
         buildDesigns()
     }
 
@@ -89,12 +96,23 @@ class StickerPad(
         chips.removeAllViews()
         val p = Theme.palette
         val typed = source().trim()
-        if (typed.isNotEmpty()) chips.addView(chip("✍️ $typed", typed == text) { select(typed, "") })
+        if (typed.isNotEmpty()) {
+            val e = StickerMaker.emojiFor(typed)
+            val mark = if (e.isEmpty()) "✍️" else e
+            chips.addView(chip("$mark ${short(typed)}", typed == text) { selectTyped(typed) })
+        }
         for (ph in StickerMaker.PHRASES) {
             chips.addView(chip("${ph.emoji} ${ph.text}", ph.text == text) { select(ph) })
         }
         chips.setBackgroundColor(p.bg)
     }
+
+    /**
+     * A shortcut can expand to hundreds of characters, and the whole of one in
+     * a chip would push every greeting off the screen.
+     */
+    private fun short(s: String, max: Int = 22) =
+        if (s.length <= max) s else s.take(max - 1).trimEnd() + "…"
 
     private fun chip(label: String, chosen: Boolean, click: () -> Unit) =
         TextView(context).apply {
@@ -114,7 +132,9 @@ class StickerPad(
     private fun buildDesigns() {
         row.removeAllViews()
         if (text.isEmpty()) return
-        for (i in 0 until StickerMaker.styleCount) {
+        // Suited design first; the rest still follow, because a colour is a
+        // taste and the user's taste beats the table's.
+        for (i in StickerMaker.styleOrder(text)) {
             val bmp = StickerMaker.render(text, i, emoji) ?: continue
             row.addView(ImageView(context).apply {
                 // Scaled for the strip; the full-size bitmap is rendered again

@@ -566,7 +566,9 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
     private val toast: TextView
     private val tabRow: LinearLayout
     private val scroller: ScrollView
-    private val tabs = ArrayList<TextView>(CATEGORIES.size + 1)
+    // Keyed by tab index, not by position in the row: the sticker tab is shown
+    // first but keeps the last index, and a list would tie the two together.
+    private val tabs = HashMap<Int, TextView>(CATEGORIES.size + 2)
     private val grid: LinearLayout
     private val bar: LinearLayout
     private val barLabels = ArrayList<TextView>(3)
@@ -580,13 +582,16 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         loadRecent()
 
         tabRow = LinearLayout(context).apply { orientation = HORIZONTAL }
-        // The recents tab is first and always present, even when empty — a tab
-        // that appears only once you have used the pad is a tab nobody finds.
+        // Word stickers lead. They are the one thing here that no other
+        // keyboard has, and a new thing put at the end is a new thing nobody
+        // finds; emoji are what everyone already knows to look for, so they
+        // survive being second. The pad still *opens* on emoji — see show()
+        // below — so nothing is taken from the person who came for a smiley.
+        tabRow.addView(tab(STICKER_ICON, STICKER_TAB))
+        // Recents next, and always present even when empty — a tab that
+        // appears only once you have used the pad is a tab nobody finds.
         tabRow.addView(tab(RECENT_ICON, 0))
         CATEGORIES.forEachIndexed { i, c -> tabRow.addView(tab(c.icon, i + 1)) }
-        // Word stickers live at the end, where a new thing can be found without
-        // displacing the emoji anyone came for.
-        tabRow.addView(tab(STICKER_ICON, STICKER_TAB))
         addView(tabRow, LayoutParams(LayoutParams.MATCH_PARENT, dp(40)))
 
         scroller = ScrollView(context)
@@ -665,12 +670,12 @@ private class EmojiPad(context: Context, private val actions: KeyboardActions) :
         isClickable = true
         setOnClickListener { show(index) }
         layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
-        tabs.add(this)
+        tabs[index] = this
     }
 
     private fun paintTabs() {
         val p = Theme.palette
-        tabs.forEachIndexed { i, t ->
+        for ((i, t) in tabs) {
             // The chosen tab gets the keyboard's own background, so it reads as
             // continuous with the grid below it rather than as another button.
             t.setBackgroundColor(if (i == current) p.bg else p.keyMod)
