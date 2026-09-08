@@ -3,6 +3,7 @@ package com.shuddhatype.ime
 import android.app.Activity
 import com.shuddhatype.R
 import com.shuddhatype.engine.Preeti
+import com.shuddhatype.engine.Templates
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -88,6 +89,10 @@ class SettingsActivity : Activity() {
 
         addView(title(getString(R.string.app_name)))
         addView(body("संस्करण ${versionName()}"))
+        addView(body(
+            "Prerak Multipurpose Pvt. Ltd. — हेटौंडा, मकवानपुर\n" +
+            "www.prerakmultipurpose.com"
+        ))
 
         addView(heading("रूप"))
         addView(body("किबोर्डको रङ छान्नुहोस्। किबोर्ड अर्को पटक खुल्दा लागू हुन्छ।"))
@@ -113,6 +118,14 @@ class SettingsActivity : Activity() {
             "नभएको कम्प्युटरमा जे देखिन्छ, त्यही यहाँ टाँस्नुहोस्।"
         ))
         addView(preetiBox())
+
+        addView(heading("औपचारिक ढाँचा"))
+        addView(body(
+            "निवेदन, सिफारिस, कोटेशन पठाउने पत्र — ढाँचा छान्नुहोस्, तलको " +
+            "बाकसमा [ ] भित्रका ठाउँ भर्नुहोस्, अनि कपी गरेर जहाँ लेख्दै " +
+            "हुनुहुन्छ त्यहाँ टाँस्नुहोस्।"
+        ))
+        addView(templateBox())
 
         addView(heading("गोपनीयता"))
         addView(body(
@@ -253,6 +266,77 @@ class SettingsActivity : Activity() {
      * English too — "Hello" was stored as the same bytes as ज्भििय and nothing
      * in the text says which was meant. Nobody can fix that automatically.
      */
+    /**
+     * Pick a letter, fill in the brackets, copy it away.
+     *
+     * An editable box rather than a label on purpose: every one of these has
+     * blanks in it, and a template you cannot type into is a template you have
+     * to retype somewhere else first.
+     */
+    private fun templateBox(): View {
+        val p = Theme.palette
+
+        val out = EditText(this).apply {
+            hint = "माथिबाट ढाँचा छान्नुहोस्"
+            setHintTextColor(faded(p.screenMuted))
+            setTextColor(p.screenText)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setSingleLine(false)
+            maxLines = 12
+        }
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(12), 0, 0)
+            val wide = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+
+            // Names on their own rows rather than in a scrolling strip: there
+            // are five of them and they are read once, not scanned daily.
+            for (t in Templates.ALL) {
+                addView(Button(this@SettingsActivity).apply {
+                    text = t.name
+                    isAllCaps = false
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    setTextColor(p.screenText)
+                    setBackgroundColor(p.keyMod)
+                    setOnClickListener { out.setText(t.body) }
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { bottomMargin = dp(6) }
+                })
+            }
+
+            addView(out, wide)
+
+            addView(Button(this@SettingsActivity).apply {
+                text = "कपी गर्ने"
+                isAllCaps = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTextColor(Color.WHITE)
+                setBackgroundColor(p.accent)
+                setOnClickListener {
+                    val text = out.text.toString()
+                    if (text.isBlank()) {
+                        toast("पहिले ढाँचा छान्नुहोस्।"); return@setOnClickListener
+                    }
+                    val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cb.setPrimaryClip(ClipData.newPlainText("ShuddhaType", text))
+                    toast("कपी भयो।")
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(8) }
+            })
+        }
+    }
+
     private fun preetiBox(): View {
         val p = Theme.palette
 

@@ -15,6 +15,7 @@ import com.shuddhatype.engine.Lexicon
 import com.shuddhatype.engine.NepaliDate
 import com.shuddhatype.engine.EnglishNumber
 import com.shuddhatype.engine.NepaliNumber
+import com.shuddhatype.engine.Respect
 import com.shuddhatype.engine.Transliterator
 import java.util.Calendar
 import kotlin.concurrent.thread
@@ -355,8 +356,17 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         // cursor mid-word would move the text about while you are still typing.
         // The bar is where you look to see what is coming.
         Shortcuts.expansionFor(roman)?.let { words.add(it) }
-        Transliterator.candidates(roman, lexicon, limit = SUGGESTION_LIMIT)
-            .forEach { if (!words.contains(it.word)) words.add(it.word) }
+        val guesses = Transliterator.candidates(roman, lexicon, limit = SUGGESTION_LIMIT)
+        guesses.forEach { if (!words.contains(it.word)) words.add(it.word) }
+        // The same verb at the other levels of respect, behind the ordinary
+        // guesses. `garyau` can only ever come out गर्‍यौ — the writer has
+        // already typed the level into the Roman — so the only place this can
+        // be offered is after the word is recognised. Behind, not in front:
+        // what was typed is still what space commits.
+        guesses.firstOrNull()?.let { top ->
+            Respect.variants(top.word) { lexicon.contains(it) }
+                .forEach { if (!words.contains(it)) words.add(it) }
+        }
         // The Roman spelling itself is always offered. Nepalis write English
         // words mid-sentence constantly ("मेरो keyboard"), and forcing a mode
         // switch for one word is the fastest way to lose the user.
