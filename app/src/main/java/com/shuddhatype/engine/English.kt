@@ -144,6 +144,26 @@ object English {
         "export", "import", "warranty", "supervisor", "layout", "dimension",
         "blueprint", "interior", "exterior", "ceiling", "flooring", "roofing",
         "truss", "frame", "column", "concrete", "plywood", "granite",
-        "tiles", "primer", "putty"
+        "tiles", "primer", "putty",
+
+        // Office and money words that turn up in every quotation and follow-up
+        // message. Nothing here is a plausible romanisation of a Nepali word —
+        // "rate" is not रेट to the transliterator, but रते, which helps nobody.
+        "estimate", "quotation", "budget", "advance", "balance", "discount",
+        "delivery", "vendor", "client", "contract", "agreement", "deadline",
+        "reminder", "attachment", "signature", "receipt", "voucher", "ledger",
+        "audit", "tender", "renewal", "deposit", "installment", "penalty",
+        "commission", "invoice", "payment", "amount", "total",
+
+        // The rest of the building trade, past the finishes already listed.
+        "measurement", "elevation", "foundation", "reinforcement",
+        "shuttering", "curing", "plumbing", "wiring", "socket", "cabinet",
+        "wardrobe", "laminate", "veneer", "varnish", "sealant", "silicone",
+        "gypsum", "plaster", "aggregate", "excavation", "scaffolding",
+        "waterproofing", "site", "sign", "post",
+
+        // Phone words, typed mid-sentence in Nepali constantly.
+        "bluetooth", "hotspot", "screenshot", "recharge", "browser", "folder",
+        "backup", "restore", "notification", "storage", "link", "file"
     )
 }
