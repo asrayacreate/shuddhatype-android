@@ -399,9 +399,15 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         // already typed the level into the Roman — so the only place this can
         // be offered is after the word is recognised. Behind, not in front:
         // what was typed is still what space commits.
-        guesses.firstOrNull()?.let { top ->
-            Respect.variants(top.word) { lexicon.contains(it) }
-                .forEach { if (!words.contains(it)) words.add(it) }
+        // The first three guesses, not just the first. `garyau` comes back as
+        // गर्‍यौं ("we did", no respect contrast) ahead of गर्‍यौ ("you did",
+        // which has one) — looking only at the top guess lost the feature on
+        // one of its most obvious words.
+        for (g in guesses.take(3)) {
+            val v = Respect.variants(g.word) { lexicon.contains(it) }
+            if (v.isEmpty()) continue
+            v.forEach { if (!words.contains(it)) words.add(it) }
+            break
         }
         // The Roman spelling itself is always offered. Nepalis write English
         // words mid-sentence constantly ("मेरो keyboard"), and forcing a mode
