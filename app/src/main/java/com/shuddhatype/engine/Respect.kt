@@ -61,7 +61,20 @@ object Respect {
             arrayOf("उँथिस्", "उँथ्यौ", "उनुहुन्थ्यो")),
         // imperative — गर् · गर · गर्नुहोस्
         Slot(arrayOf("", "", "्नुहोस्"), arrayOf("", "", "नुहोस्"),
-            arrayOf("", "", "उनुहोस्"))
+            arrayOf("", "", "उनुहोस्")),
+        // Third person, past — उसले गर्‍यो · उहाँले गर्नुभयो.
+        // Only two levels exist here, so the low and mid columns are the same
+        // word and the duplicate is dropped when the list is built. This is the
+        // commonest respect decision in written Nepali and was missing from the
+        // first version, which only looked at what *you* did.
+        Slot(arrayOf("्यो", "्यो", "्नुभयो"), arrayOf("यो", "यो", "नुभयो"),
+            arrayOf("यो", "यो", "उनुभयो")),
+        // Third person, present — उसले गर्छ · उहाँले गर्नुहुन्छ
+        Slot(arrayOf("्छ", "्छ", "्नुहुन्छ"), arrayOf("न्छ", "न्छ", "नुहुन्छ"),
+            arrayOf("उँछ", "उँछ", "उनुहुन्छ")),
+        // Third person, present negative — गर्दैन · गर्नुहुन्न
+        Slot(arrayOf("्दैन", "्दैन", "्नुहुन्न"), arrayOf("ँदैन", "ँदैन", "नुहुन्न"),
+            arrayOf("उँदैन", "उँदैन", "उनुहुन्न"))
     )
 
     private class Ending(val text: String, val slot: Int, val level: Int)
@@ -108,7 +121,13 @@ object Respect {
         listOf("लिइस्", "लियौ", "लिनुभयो"),
         listOf("ले", "लेऊ", "लिनुहोस्"),
         listOf("खाइस्", "खायौ", "खानुभयो"),
-        listOf("खा", "खाऊ", "खानुहोस्")
+        listOf("खा", "खाऊ", "खानुहोस्"),
+        // Third person of the same suppletive verbs.
+        listOf("गयो", "गयो", "जानुभयो"),
+        listOf("आयो", "आयो", "आउनुभयो"),
+        listOf("भयो", "भयो", "हुनुभयो"),
+        listOf("दियो", "दियो", "दिनुभयो"),
+        listOf("थियो", "थियो", "हुनुहुन्थ्यो")
     )
 
     /**
@@ -121,8 +140,10 @@ object Respect {
         if (w.length < 2) return emptyList()
 
         for (row in IRREGULAR) {
-            val at = row.indexOf(w)
-            if (at >= 0) return row.filterIndexed { i, _ -> i != at }
+            // Dropped by value, not by index: the third-person rows carry the
+            // same word in the low and mid columns, and matching on index
+            // would hand one of them straight back as a "variant".
+            if (row.contains(w)) return row.filter { it != w }.distinct()
         }
 
         for (e in ENDINGS) {
