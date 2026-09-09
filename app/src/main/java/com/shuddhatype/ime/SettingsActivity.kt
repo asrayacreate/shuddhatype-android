@@ -89,8 +89,12 @@ class SettingsActivity : Activity() {
 
         addView(title(getString(R.string.app_name)))
         addView(body("संस्करण ${versionName()}"))
+        // Labelled, not just printed. The name alone sat under the version
+        // number and read as part of the header — it never answered the
+        // question anyone actually opens settings with, which is who made this.
         addView(body(
-            "Prerak Multipurpose Pvt. Ltd. — हेटौंडा, मकवानपुर\n" +
+            "विकासकर्ता: Prerak Multipurpose Pvt. Ltd.\n" +
+            "हेटौंडा-२, मकवानपुर, नेपाल\n" +
             "www.prerakmultipurpose.com"
         ))
 
