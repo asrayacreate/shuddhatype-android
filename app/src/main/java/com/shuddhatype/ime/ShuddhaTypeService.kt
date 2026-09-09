@@ -1,6 +1,7 @@
 package com.shuddhatype.ime
 
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.view.View
 import android.content.ClipDescription
 import android.graphics.Bitmap
@@ -179,7 +180,19 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
             refreshSuggestions()
             return
         }
-        currentInputConnection?.deleteSurroundingText(1, 0)
+        val ic = currentInputConnection ?: return
+        // Select-all then backspace did nothing before: deleteSurroundingText
+        // works relative to the cursor and leaves a selection untouched, so the
+        // one character it removed was outside the highlighted block. Replacing
+        // the selection with nothing is what actually deletes it.
+        val selected = ic.getSelectedText(0)
+        if (!selected.isNullOrEmpty()) {
+            ic.commitText("", 1)
+            latinRun.setLength(0)
+            digits.setLength(0)
+            return
+        }
+        ic.deleteSurroundingText(1, 0)
         if (latinRun.isNotEmpty()) latinRun.setLength(latinRun.length - 1)
         if (digits.isNotEmpty()) {
             digits.setLength(digits.length - 1)
@@ -198,10 +211,30 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         finishWord(separator = " ")
     }
 
+    /**
+     * Enter has two jobs and the field decides which. A chat box wants a new
+     * line; a search box wants to search. The old code sent IME_ACTION_UNSPECIFIED
+     * to everything, which most apps ignore — so in WhatsApp the key did nothing
+     * at all.
+     */
     override fun onEnter() {
         digits.setLength(0)
         finishWord(separator = "")
-        currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_UNSPECIFIED)
+        val ic = currentInputConnection ?: return
+        val info = currentInputEditorInfo
+        val options = info?.imeOptions ?: 0
+        val action = options and EditorInfo.IME_MASK_ACTION
+        val multiLine = ((info?.inputType ?: 0) and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
+        val noAction = (options and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
+
+        if (multiLine || noAction ||
+            action == EditorInfo.IME_ACTION_NONE ||
+            action == EditorInfo.IME_ACTION_UNSPECIFIED
+        ) {
+            ic.commitText("\n", 1)
+        } else {
+            ic.performEditorAction(action)
+        }
     }
 
     override fun onPunctuation(text: String) {
