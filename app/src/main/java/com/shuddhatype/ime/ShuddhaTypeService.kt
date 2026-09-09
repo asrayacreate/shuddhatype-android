@@ -342,8 +342,13 @@ class ShuddhaTypeService : InputMethodService(), KeyboardActions {
         if (!::suggestionBar.isInitialized) return
         digits.setLength(0)
         finishWord(separator = "")
-        pendingInserts = Templates.ALL.associate { it.name to it.body }
-        suggestionBar.show(Templates.ALL.map { it.name })
+        // The user's own letters lead. They wrote them for a reason, and the
+        // five that ship are the fallback, not the point.
+        val map = LinkedHashMap<String, String>()
+        UserTemplates.all(this).forEach { (name, body) -> map[name] = body }
+        Templates.ALL.forEach { if (!map.containsKey(it.name)) map[it.name] = it.body }
+        pendingInserts = map
+        suggestionBar.show(map.keys.toList())
     }
 
     private fun commitChoice(word: String) {

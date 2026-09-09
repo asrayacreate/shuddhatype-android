@@ -131,6 +131,15 @@ class SettingsActivity : Activity() {
         ))
         addView(templateBox())
 
+        addView(heading("आफ्नै ढाँचा"))
+        addView(body(
+            "आफ्नै पत्र थप्नुहोस् — नाम दिनुहोस् र बेहोरा लेख्नुहोस्। थपेपछि " +
+            "किबोर्डको १२३ पानाको ढाँचा कुञ्जीमा तयारी पाँचसँगै देखिन्छ, र " +
+            "थिच्नेबित्तिकै पूरै हालिन्छ।"
+        ))
+        addView(userTemplateList())
+        addView(userTemplateEditor())
+
         addView(heading("गोपनीयता"))
         addView(body(
             "तपाईंले टाइप गरेको कुनै पनि कुरा फोनबाहिर जाँदैन। " +
@@ -337,6 +346,147 @@ class SettingsActivity : Activity() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply { topMargin = dp(8) }
+            })
+        }
+    }
+
+    private fun userTemplateList(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, dp(12), 0, 0)
+        val saved = UserTemplates.all(this@SettingsActivity)
+        if (saved.isEmpty()) {
+            addView(body("अहिलेसम्म आफ्नो कुनै ढाँचा छैन।"))
+            return@apply
+        }
+        for ((name, bodyText) in saved) addView(userTemplateRow(name, bodyText))
+    }
+
+    /**
+     * One saved letter. Only the first line shows — a निवेदन printed in full
+     * would make a list of three of them longer than the screen, and the thing
+     * you came to find, which is the name, would be the hardest part to see.
+     */
+    private fun userTemplateRow(name: String, bodyText: String): View {
+        val p = Theme.palette
+        val first = bodyText.substringBefore('\n').trim()
+        val preview =
+            if (first.length <= PREVIEW_CHARS) first
+            else first.take(PREVIEW_CHARS).trimEnd() + " …"
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(p.keyMod)
+            setPadding(dp(12), dp(10), dp(10), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(6) }
+
+            addView(TextView(this@SettingsActivity).apply {
+                text = "$name\n$preview"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextColor(p.screenText)
+                layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                )
+            })
+
+            // Editing loads it back into the fields below: UserTemplates.put
+            // overwrites by name, so saving from there replaces this row.
+            addView(Button(this@SettingsActivity).apply {
+                text = "सम्पादन"
+                isAllCaps = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(p.screenText)
+                setBackgroundColor(p.key)
+                setOnClickListener {
+                    tplName = name
+                    tplBody = bodyText
+                    recreate()
+                }
+            })
+
+            addView(Button(this@SettingsActivity).apply {
+                text = "मेट्ने"
+                isAllCaps = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(Color.WHITE)
+                setBackgroundColor(p.accent)
+                setOnClickListener {
+                    UserTemplates.remove(this@SettingsActivity, name)
+                    recreate()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dp(6) }
+            })
+        }
+    }
+
+    private fun userTemplateEditor(): View {
+        val p = Theme.palette
+
+        val nameField = EditText(this).apply {
+            hint = "नाम — जस्तै: काम सम्पन्न पत्र"
+            setHintTextColor(faded(p.screenMuted))
+            setTextColor(p.screenText)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setSingleLine(true)
+            setText(tplName)
+        }
+        val bodyField = EditText(this).apply {
+            hint = "बेहोरा — भर्नुपर्ने ठाउँमा [ ] राख्नुहोस्"
+            setHintTextColor(faded(p.screenMuted))
+            setTextColor(p.screenText)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setSingleLine(false)
+            maxLines = 10
+            setText(tplBody)
+        }
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(16), 0, 0)
+            val wide = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            addView(nameField, wide)
+            addView(bodyField, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) })
+
+            addView(Button(this@SettingsActivity).apply {
+                text = "ढाँचा थप्ने"
+                isAllCaps = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTextColor(Color.WHITE)
+                setBackgroundColor(p.accent)
+                setOnClickListener {
+                    val n = nameField.text.toString().trim()
+                    val b = bodyField.text.toString().trim()
+                    val bad = UserTemplates.rejectReason(n)
+                    when {
+                        bad != null -> toast(bad)
+                        b.isEmpty() -> toast("बेहोरा खाली छ।")
+                        b.length > UserTemplates.MAX_BODY ->
+                            toast("धेरै लामो भयो — ${UserTemplates.MAX_BODY} अक्षरसम्म मात्र।")
+                        else -> {
+                            UserTemplates.put(this@SettingsActivity, n, b)
+                            tplName = ""
+                            tplBody = ""
+                            recreate()
+                        }
+                    }
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(10) }
             })
         }
     }
@@ -612,6 +762,10 @@ class SettingsActivity : Activity() {
          */
         var draftKey: String = ""
         var draftValue: String = ""
+
+        /** The same, for a half-written ढाँचा. */
+        var tplName: String = ""
+        var tplBody: String = ""
 
         /**
          * Which rows are showing their full text. Static for the same reason
