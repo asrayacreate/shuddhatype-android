@@ -1,0 +1,58 @@
+# Builds the signed release, by hand only.
+#
+# Separate from the debug workflow on purpose: every push should keep producing
+# a debug APK to test with, but a signed release should happen when Punya says
+# so, not on every commit.
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # certutil -encode writes PEM, not raw base64 — the file it produced has
+      # -----BEGIN CERTIFICATE----- and -----END CERTIFICATE----- around the
+      # data. base64 -d chokes on those lines, so they come out first.
+      - name: Decode the upload key
+        run: |
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" \
+            | grep -v 'CERTIFICATE' \
+            | tr -d '\r\n' \
+            | base64 -d > "$RUNNER_TEMP/upload.jks"
+          ls -l "$RUNNER_TEMP/upload.jks"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # The AAB is what Play Store takes. The APK is built as well so the
+      # release build can be installed and tried on a real phone first —
+      # minification is on for release and only running it proves nothing broke.
+      - name: Build signed release
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/upload.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew bundleRelease assembleRelease
+
+      - name: Upload AAB for Play Store
+        uses: actions/upload-artifact@v4
+        with:
+          name: shuddhatype-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload APK for testing on a phone
+        uses: actions/upload-artifact@v4
+        with:
+          name: shuddhatype-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
