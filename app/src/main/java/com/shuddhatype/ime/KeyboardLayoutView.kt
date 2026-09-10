@@ -6,12 +6,14 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowInsets
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -56,6 +58,33 @@ class KeyboardLayoutView(
         emojiPad.stickerSource = { stickerSource?.invoke() ?: "" }
         emojiPad.onStickerPicked = { b, t -> onStickerPicked?.invoke(b, t) }
         applyTheme()
+        fitNavigationBar()
+    }
+
+    /**
+     * Keeps the keys clear of the navigation bar.
+     *
+     * targetSdk 35 makes Android 15 lay the keyboard's own window out edge to
+     * edge — the same change that put the settings screens under the status
+     * bar. Nothing insets the window any more, so the bottom row ran on under
+     * the navigation bar: on the phone the gesture line sat across the space
+     * key, and on a phone with ◁ ○ □ buttons those would cover space and ↵
+     * and take their taps.
+     *
+     * The bar's own size is padded on below (and beside, for a landscape
+     * phone with the buttons at the side), and this view's background fills
+     * that strip, which is how the stock keyboard looks. Up to Android 14 the
+     * window's decor still consumes the bar, the inset arrives here as 0 and
+     * nothing changes. Below API 30 there is no navigationBars() type, and the
+     * window was never edge to edge there either.
+     */
+    private fun fitNavigationBar() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        setOnApplyWindowInsetsListener { v, insets ->
+            val nav = insets.getInsets(WindowInsets.Type.navigationBars())
+            v.setPadding(nav.left, 0, nav.right, nav.bottom)
+            insets
+        }
     }
 
     /**
