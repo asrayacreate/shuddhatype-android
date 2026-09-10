@@ -21,11 +21,33 @@ android {
         noCompress += listOf("gz")
     }
 
+    // Signing comes from the environment, never from a file in the repo. On a
+    // laptop none of these are set and the block stays empty, so a debug build
+    // still works with nothing configured; on the release workflow all four
+    // arrive from GitHub secrets. A keystore committed to a public repo is an
+    // app somebody else can publish updates to.
+    signingConfigs {
+        create("release") {
+            val store = System.getenv("KEYSTORE_FILE")
+            if (store != null) {
+                storeFile = file(store)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Only when the key is actually there. Without this guard a local
+            // release build fails with an unhelpful error about a null keystore.
+            if (System.getenv("KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
