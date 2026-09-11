@@ -5,13 +5,13 @@ plugins {
 
 android {
     namespace = "com.shuddhatype"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.shuddhatype"
         minSdk = 24          // Android 7.0 — covers the phones actually used in Nepal
-        targetSdk = 35
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "1.0"
     }
 
