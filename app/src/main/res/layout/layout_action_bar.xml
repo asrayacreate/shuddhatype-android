@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="45dp"
+    android:background="#1A1A1D"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <Button
+        android:id="@+id/btn_clipboard"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="Clipboard" />
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+
+    <Button
+        android:id="@+id/btn_nepali_date"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="📅 मिति" />
+
+    <Button
+        android:id="@+id/btn_ai_fix"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="✨ शुद्ध गर" />
+
+</LinearLayout>
